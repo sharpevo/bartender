@@ -1,6 +1,7 @@
 //
-// -file ../20190722-Nova314--分析需求表-贝瑞\(1\).xlsm -path /tmp/ -from 2 -sheet 1 -to -1 -type csv
-// -directory /tmp/watcher -from 2 -sheet 1 -to -1 -type csv
+// parse -file ../20190722-Nova314--分析需求表-贝瑞\(1\).xlsm -path /tmp/ -from 2 -sheet 1 -to -1 -type csv
+// watch -directory /tmp/watcher -from 2 -sheet 1 -to -1 -type csv
+// send -username wuy -password igenetech -hostkey "192.168.1.96 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLjYGzkYWF+a1KV2NDjEtjzfa0pPbukZN8Ul2vCRRVdZ02+RkN5mnYiUiL44BcezCyoWf4vwCuRSCuy8FMSVa38=" -sourcefile test -targetfile /tmp/from25
 package main
 
 import (
@@ -8,7 +9,10 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fsnotify/fsnotify"
+	"github.com/pkg/sftp"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+	"io"
 	"log"
 	"os"
 	"path"
@@ -21,13 +25,18 @@ const (
 	WATCHER_DIRECTORY = "watcher"
 )
 
+func usage() {
+	fmt.Println("Usage: parse_excel <command> [<args>]")
+	fmt.Println()
+	fmt.Println("Availabve commands are: ")
+	fmt.Println("    parse: Parse the excel directory.")
+	fmt.Println("    send: Send file to remote directory.")
+	fmt.Println("    watch: Watch a directory and parse the excel when created.")
+}
+
 func main() {
 	if len(os.Args) == 1 {
-		fmt.Println("Usage: parse_excel <command> [<args>]")
-		fmt.Println()
-		fmt.Println("Availabve commands are: ")
-		fmt.Println("    parse: Parse the excel directory.")
-		fmt.Println("    watch: Watch a directory and parse the excel when created.")
+		usage()
 		return
 	}
 
@@ -68,6 +77,33 @@ func main() {
 		"path of output file, '_' means same folder of the input file",
 	)
 
+	sendCommand := flag.NewFlagSet("send", flag.ExitOnError)
+	hostKey := sendCommand.String(
+		"hostkey",
+		"***REMOVED***",
+		"lines in ./ssh/known_host",
+	)
+	userName := sendCommand.String(
+		"username",
+		"root",
+		"user name to use when connecting to remote server",
+	)
+	password := sendCommand.String(
+		"password",
+		"",
+		"password to use when connecting to remote server",
+	)
+	sourceFile := sendCommand.String(
+		"sourcefile",
+		"",
+		"the source file to send to remote server",
+	)
+	targetFile := sendCommand.String(
+		"targetfile",
+		"",
+		"the target file to send to remote server",
+	)
+
 	watchCommand := flag.NewFlagSet("watch", flag.ExitOnError)
 	watchPath := watchCommand.String(
 		"directory",
@@ -99,12 +135,46 @@ func main() {
 		"csv",
 		"type of output file, csv or xlsx",
 	)
+	dryRun := watchCommand.Bool(
+		"dry",
+		false,
+		"perform a trial run with no data sent",
+	)
+	whostKey := watchCommand.String(
+		"hostkey",
+		"***REMOVED***",
+		"lines in ./ssh/known_host",
+	)
+	wuserName := watchCommand.String(
+		"username",
+		"root",
+		"user name to use when connecting to remote server",
+	)
+	wpassword := watchCommand.String(
+		"password",
+		"",
+		"password to use when connecting to remote server",
+	)
+	wsourceFile := watchCommand.String(
+		"sourcefile",
+		"",
+		"the source file to send to remote server",
+	)
+	wtargetFile := watchCommand.String(
+		"targetfile",
+		"",
+		"the target file to send to remote server",
+	)
 
 	switch os.Args[1] {
 	case "parse":
 		parseCommand.Parse(os.Args[2:])
+	case "send":
+		sendCommand.Parse(os.Args[2:])
 	case "watch":
 		watchCommand.Parse(os.Args[2:])
+	case "-h":
+		usage()
 	default:
 		fmt.Printf("invalid command: %q", os.Args[1])
 	}
@@ -165,6 +235,17 @@ func main() {
 								"file": outputFile,
 							}).Info("PRC")
 						}
+						if !*dryRun {
+							if err := Send(
+								*whostKey,
+								*wuserName,
+								*wpassword,
+								*wsourceFile,
+								*wtargetFile,
+							); err != nil {
+								log.Println(err)
+							}
+						}
 					}
 				case err, ok := <-watcher.Errors:
 					if !ok {
@@ -204,9 +285,21 @@ func main() {
 		}
 	}
 
+	if sendCommand.Parsed() {
+		if err := Send(
+			*hostKey,
+			*userName,
+			*password,
+			*sourceFile,
+			*targetFile,
+		); err != nil {
+			log.Println(err)
+		}
+	}
+
 }
 
-func NewFileName(outputPath, name, ext string) string {
+func NewFileName(outputPath, name, ext string) string { // {{{
 	dir, file := filepath.Split(name)
 	if outputPath != "_" {
 		dir = outputPath
@@ -219,9 +312,9 @@ func NewFileName(outputPath, name, ext string) string {
 			ext,
 		),
 	)
-}
+} // }}}
 
-func ParseColumnIndices(columnIndices string) (output []int, err error) {
+func ParseColumnIndices(columnIndices string) (output []int, err error) { // {{{
 	for _, indexs := range strings.Split(columnIndices, ",") {
 		indexi, err := strconv.Atoi(indexs)
 		if err != nil {
@@ -234,9 +327,9 @@ func ParseColumnIndices(columnIndices string) (output []int, err error) {
 		output = append(output, indexi)
 	}
 	return output, nil
-}
+} // }}}
 
-func Extract(
+func Extract( // {{{
 	fileName string,
 	sheetIndex int,
 	rowStartsAt int,
@@ -284,4 +377,82 @@ func Extract(
 		)
 	}
 	return outputFile, nil
+} // }}}
+
+func Send(
+	hostKey string,
+	username string,
+	password string,
+	sourceFile string,
+	targetFile string,
+) error {
+	if username == "" {
+		return fmt.Errorf("missing username")
+	}
+	if password == "" {
+		return fmt.Errorf("missing password")
+	}
+	if sourceFile == "" {
+		return fmt.Errorf("missing sourcefile")
+	}
+	if targetFile == "" {
+		return fmt.Errorf("missing targetfile")
+	}
+
+	_, hosts, pubKey, _, _, err := ssh.ParseKnownHosts([]byte(hostKey))
+	if err != nil {
+		return fmt.Errorf("invalid host key: %v", err)
+	}
+	if len(hosts) < 1 {
+		return fmt.Errorf("invalid host: %v", hosts)
+	}
+	config := &ssh.ClientConfig{
+		User: username,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(password),
+		},
+		HostKeyCallback: ssh.FixedHostKey(pubKey),
+	}
+	conn, err := ssh.Dial(
+		"tcp",
+		fmt.Sprintf("%s:22", hosts[0]),
+		config,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to dial: %v", err)
+	}
+
+	client, err := sftp.NewClient(conn)
+	if err != nil {
+		return fmt.Errorf("failed to create client: %v", err)
+	}
+	defer client.Close()
+
+	dir, _ := filepath.Split(targetFile)
+	if dir != "" && dir != "./" {
+		if client.MkdirAll(dir) != nil {
+			return fmt.Errorf(
+				"failed to create target directory '%s': %v",
+				dir,
+				err,
+			)
+		}
+	}
+	dstFile, err := client.Create(targetFile)
+	if err != nil {
+		return fmt.Errorf("failed to create target file: %v", err)
+	}
+	defer dstFile.Close()
+
+	srcFile, err := os.Open(sourceFile)
+	if err != nil {
+		return fmt.Errorf("failed to open source file: %v", err)
+	}
+
+	bytes, err := io.Copy(dstFile, srcFile)
+	if err != nil {
+		return fmt.Errorf("failed to send file: %v", err)
+	}
+	fmt.Printf("%d bytes copied\n", bytes)
+	return nil
 }
