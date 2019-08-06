@@ -54,7 +54,7 @@ func main() {
 	)
 	pcolumnIndices := parseCommand.String(
 		"columns",
-		"0,1,2,3,4,9,11",
+		"1,2,3,4,5,9,11",
 		"colmuns to be extracted",
 	)
 	poutputType := parseCommand.String(
