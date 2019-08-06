@@ -429,7 +429,7 @@ func Send(
 	defer client.Close()
 
 	dir, _ := filepath.Split(targetFile)
-	if dir != "" && dir != "./" {
+	if dir != "" && dir != "./" && dir != "~/" {
 		if client.MkdirAll(dir) != nil {
 			return fmt.Errorf(
 				"failed to create target directory '%s': %v",
