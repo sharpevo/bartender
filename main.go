@@ -68,8 +68,8 @@ func main() {
 	)
 	poutputType := parseCommand.String(
 		"type",
-		"csv",
-		"type of output file, csv or xlsx",
+		"txt",
+		"type of output file, csv, txt or xlsx",
 	)
 	poutputPath := parseCommand.String(
 		"path",
@@ -354,7 +354,7 @@ func Extract( // {{{
 		outputType,
 	)
 	switch outputType {
-	case "csv":
+	case "csv", "txt":
 		if excel.MakeFileCSV(
 			outputFile,
 			data,
