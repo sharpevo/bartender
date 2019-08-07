@@ -40,3 +40,37 @@ func TestMakeRemoteFileWithinNameFolder(t *testing.T) {
 		})
 	}
 }
+
+func TestIsDir(t *testing.T) {
+	cases := []struct {
+		input       string
+		expectBool  bool
+		expectError string
+	}{
+		{
+			input:       "/var/log",
+			expectBool:  true,
+			expectError: "",
+		},
+		{
+			input:       "/var/log/nonexist",
+			expectBool:  false,
+			expectError: "stat /var/log/nonexist: no such file or directory",
+		},
+	}
+	for index, c := range cases {
+		t.Run(fmt.Sprintf("%v", index), func(t *testing.T) {
+			isDir, err := fsop.IsDir(c.input)
+			if isDir != c.expectBool ||
+				(err != nil && err.Error() != c.expectError) {
+				t.Errorf(
+					"\nEXPECT: %v %v\n GET: %v %v\n\n",
+					c.expectBool,
+					c.expectError,
+					isDir,
+					err,
+				)
+			}
+		})
+	}
+}

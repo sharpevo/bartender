@@ -2,6 +2,7 @@ package fsop
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -20,4 +21,12 @@ func MakeRemoteFileWithinNameFolder(sourceFilePath string, remoteOutputPath stri
 	)
 	remoteFile := filepath.Join(remoteDir, remoteFileName)
 	return remoteDir, remoteFile
+} // }}}
+
+func IsDir(inputpath string) (isFolder bool, err error) { // {{{
+	f, err := os.Stat(inputpath)
+	if err != nil {
+		return isFolder, err
+	}
+	return f.Mode().IsDir(), nil
 } // }}}

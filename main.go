@@ -137,7 +137,7 @@ func main() {
 			fmt.Println(err)
 			return
 		}
-		isFolder, err := IsFolder(*inputPath)
+		isFolder, err := fsop.IsDir(*inputPath)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -342,14 +342,6 @@ func main() {
 		<-done
 	}
 }
-
-func IsFolder(inputpath string) (isFolder bool, err error) { // {{{
-	f, err := os.Stat(inputpath)
-	if err != nil {
-		return isFolder, err
-	}
-	return f.Mode().IsDir(), nil
-} // }}}
 
 func Watch(inputPath string, duration int) { // {{{
 	done := make(chan struct{})
