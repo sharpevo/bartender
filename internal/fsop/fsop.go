@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -30,3 +31,18 @@ func IsDir(inputpath string) (isFolder bool, err error) { // {{{
 	}
 	return f.Mode().IsDir(), nil
 } // }}}
+
+func ConvertColumnIndices(columnIndices string) (output []int, err error) { // {{{
+	for _, indexs := range strings.Split(columnIndices, ",") {
+		indexi, err := strconv.Atoi(strings.Trim(indexs, " "))
+		if err != nil {
+			return output, fmt.Errorf(
+				"invalid integer '%v' in '%v'",
+				indexs,
+				columnIndices,
+			)
+		}
+		output = append(output, indexi)
+	}
+	return output, nil
+}

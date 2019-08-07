@@ -21,7 +21,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -132,7 +131,7 @@ func main() {
 	}
 
 	if parseCommand.Parsed() {
-		columns, err := ParseColumnIndices(*columnIndices)
+		columns, err := fsop.ConvertColumnIndices(*columnIndices)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -387,21 +386,6 @@ func NewFileName(outputPath, name, ext string) string { // {{{
 			ext,
 		),
 	)
-} // }}}
-
-func ParseColumnIndices(columnIndices string) (output []int, err error) { // {{{
-	for _, indexs := range strings.Split(columnIndices, ",") {
-		indexi, err := strconv.Atoi(indexs)
-		if err != nil {
-			return output, fmt.Errorf(
-				"invalid integer '%v' in '%v'",
-				indexs,
-				columnIndices,
-			)
-		}
-		output = append(output, indexi)
-	}
-	return output, nil
 } // }}}
 
 func Extract( // {{{
