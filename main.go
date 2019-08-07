@@ -91,7 +91,7 @@ func main() {
 	)
 	hostKey := parseCommand.String(
 		"hostkey",
-		"***REMOVED***",
+		"101.201.180.67 ecdsa-sha2-nistp256 xxx",
 		"lines in ./ssh/known_host",
 	)
 	userName := parseCommand.String(
@@ -113,7 +113,13 @@ func main() {
 		"interval",
 		60,
 		"interval of walking through the folders, not for files",
-	) // }}}
+	)
+	logLevel := parseCommand.String(
+		"loglevel",
+		"info",
+		"log level",
+	)
+	// }}}
 
 	switch os.Args[1] {
 	case "parse":
@@ -127,24 +133,6 @@ func main() {
 	}
 
 	if parseCommand.Parsed() {
-
-		fmt.Println(
-			*inputPath,
-			*sheetIndex,
-			*rowStartsAt,
-			*rowEndsAt,
-			*columnIndices,
-			*outputPath,
-			*outputType,
-			*isTransfer,
-			*isWatch,
-			*interval,
-			*userName,
-			*password,
-			*hostKey,
-			*isTransfer,
-			*remoteOutputPath,
-		)
 		columns, err := ParseColumnIndices(*columnIndices)
 		if err != nil {
 			fmt.Println(err)
@@ -178,10 +166,11 @@ func main() {
 			// TODO: parse all the files
 		}
 		// is folder and watch
-		logFile := filepath.Join(*inputPath, "log.txt")
+		logFile := filepath.Join(*outputPath, "log.txt")
 		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err == nil {
-			logrus.SetOutput(file)
+			mw := io.MultiWriter(os.Stdout, file)
+			logrus.SetOutput(mw)
 		} else {
 			fmt.Println("failed to open log file:", logFile)
 			return
@@ -190,7 +179,21 @@ func main() {
 			DisableColors:          true,
 			DisableLevelTruncation: false,
 		})
-		logrus.SetLevel(logrus.TraceLevel)
+		switch *logLevel {
+		case "debug":
+			logrus.SetLevel(logrus.DebugLevel)
+		default:
+			logrus.SetLevel(logrus.InfoLevel)
+		}
+
+		logrus.WithFields(logrus.Fields{
+			"logfile":  logFile,
+			"loglevel": *logLevel,
+		}).Info("LOG")
+
+		logrus.WithFields(logrus.Fields{
+			"hostkey": *hostKey,
+		}).Debug("LOG")
 
 		watcher, _ = fsnotify.NewWatcher()
 		defer watcher.Close()
@@ -215,19 +218,21 @@ func main() {
 							*outputPath,
 							*outputType,
 						); err != nil {
-							log.Println(err)
 							logrus.WithFields(logrus.Fields{
 								"file":    event.Name,
 								"message": err.Error(),
-							}).Error("PRC")
+							}).Error("PRS")
 						} else {
-							log.Println(outputFile)
 							logrus.WithFields(logrus.Fields{
 								"file": outputFile,
-							}).Info("PRC")
+							}).Info("PRS")
 							if !*isTransfer {
 								continue
 							}
+							logrus.WithFields(logrus.Fields{
+								"file":    event.Name,
+								"message": "start",
+							}).Debug("SND")
 							if err := Send(
 								*hostKey,
 								*userName,
@@ -237,7 +242,15 @@ func main() {
 								*outputType,
 								*remoteOutputPath,
 							); err != nil {
-								log.Println(err)
+								logrus.WithFields(logrus.Fields{
+									"file":    event.Name,
+									"message": err.Error(),
+								}).Error("SND")
+							} else {
+								logrus.WithFields(logrus.Fields{
+									"file":    event.Name,
+									"message": "sent",
+								}).Info("SND")
 							}
 						}
 					}
@@ -245,7 +258,9 @@ func main() {
 					if !ok {
 						return
 					}
-					fmt.Println("error:", err)
+					logrus.WithFields(logrus.Fields{
+						"message": err.Error(),
+					}).Error("LOG")
 				}
 			}
 		}()
@@ -269,11 +284,9 @@ func Watch(inputPath string, duration int) {
 	}()
 	ticker := time.NewTicker(time.Duration(duration) * time.Second)
 	defer ticker.Stop()
-	//for _ = range ticker.C {
 	for ; true; <-ticker.C {
 		<-done
 		if err := filepath.Walk(inputPath, addToWatcher); err != nil {
-			fmt.Println(err)
 			logrus.WithFields(logrus.Fields{
 				"path":    inputPath,
 				"message": err.Error(),
@@ -286,7 +299,9 @@ func Watch(inputPath string, duration int) {
 }
 func addToWatcher(inputPath string, f os.FileInfo, err error) error {
 	if f.Mode().IsDir() {
-		fmt.Println("add", inputPath)
+		logrus.WithFields(logrus.Fields{
+			"file": inputPath,
+		}).Debug("ADD")
 		return watcher.Add(inputPath)
 	}
 	return nil
@@ -421,8 +436,12 @@ func Send( // {{{
 	defer client.Close()
 
 	remoteDir, remoteFile := MakeRemoteFile(sourceFile, remoteOutputPath, outputType)
+	logrus.WithFields(logrus.Fields{
+		"outputFile": outputFile,
+		"remoteDir":  remoteDir,
+		"remoteFile": remoteFile,
+	}).Debug("SND")
 
-	fmt.Println(">>>", remoteFile)
 	if remoteDir != "" && remoteDir != "./" && remoteDir != "~/" {
 		if client.MkdirAll(remoteDir) != nil {
 			return fmt.Errorf(
@@ -438,7 +457,6 @@ func Send( // {{{
 	}
 	defer dstFile.Close()
 
-	fmt.Println(">>>", outputFile)
 	srcFile, err := os.Open(outputFile)
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %v", err)
@@ -448,7 +466,10 @@ func Send( // {{{
 	if err != nil {
 		return fmt.Errorf("failed to send file: %v", err)
 	}
-	fmt.Printf("%d bytes copied\n", bytes)
+	logrus.WithFields(logrus.Fields{
+		"bytesSent": bytes,
+	}).Debug("SND")
+
 	return nil
 } // }}}
 
