@@ -4,6 +4,7 @@
 // send -username wuy -password igenetech -hostkey "192.168.1.96 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLjYGzkYWF+a1KV2NDjEtjzfa0pPbukZN8Ul2vCRRVdZ02+RkN5mnYiUiL44BcezCyoWf4vwCuRSCuy8FMSVa38=" -sourcefile test -targetfile /tmp/from25
 
 // ./main parse -path=/tmp/watcher -sheet=1 -columns=1,2,3,4,5,9,11 -from=2 -to=-1 -output=output/ -remotepath=/root/testauto -transfer=true -username=root -password=***REMOVED*** -watch=true -interval=1
+//go run main.go parse -inputpath=/tmp/watcher -sheet=1 -columns=1,2,3,4,5,9,11 -rowstart=2 -rowend=-1 -outputpath=output/ -outputtype=txt -remotepath=/root/testauto -transfer=tr> go run main.go parse -inputpath=/tmp/watcher -sheet=1 -columns=1,2,3,4,5,9,11 -rowstart=2 -rowend=-1 -outputpath=output/ -outputtype=txt -remotepath=/root/testauto -transfer=true -username=root -password=***REMOVED*** -interval=1 -hostkey="***REMOVED***"
 package main
 
 import (
@@ -143,6 +144,34 @@ func main() {
 			fmt.Println(err)
 			return
 		}
+
+		logFile := filepath.Join(*outputPath, "log.txt")
+		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err == nil {
+			mw := io.MultiWriter(os.Stdout, file)
+			logrus.SetOutput(mw)
+		} else {
+			fmt.Println("failed to open log file:", logFile)
+			return
+		}
+		logrus.SetFormatter(&logrus.TextFormatter{
+			DisableColors:          true,
+			DisableLevelTruncation: false,
+		})
+		switch *logLevel {
+		case "debug":
+			logrus.SetLevel(logrus.DebugLevel)
+		default:
+			logrus.SetLevel(logrus.InfoLevel)
+		}
+		logrus.WithFields(logrus.Fields{
+			"logfile":  logFile,
+			"loglevel": *logLevel,
+		}).Info("LOG")
+		logrus.WithFields(logrus.Fields{
+			"hostkey": *hostKey,
+		}).Debug("LOG")
+
 		if !isFolder {
 			if outputFile, err := Extract(
 				*inputPath,
@@ -163,38 +192,73 @@ func main() {
 		}
 		// is folder
 		if !*isWatch {
-			// TODO: parse all the files
-		}
-		// is folder and watch
-		logFile := filepath.Join(*outputPath, "log.txt")
-		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err == nil {
-			mw := io.MultiWriter(os.Stdout, file)
-			logrus.SetOutput(mw)
-		} else {
-			fmt.Println("failed to open log file:", logFile)
+			// TODO: parse all the files and transfer
+			if err := filepath.Walk(
+				*inputPath,
+				func(
+					inputPath string,
+					f os.FileInfo,
+					err error,
+				) error {
+					if !f.Mode().IsRegular() {
+						return nil
+					}
+					logrus.WithFields(logrus.Fields{
+						"file": inputPath,
+					}).Info("NEW")
+					if outputFile, err := Extract(
+						inputPath,
+						*sheetIndex,
+						*rowStartsAt,
+						*rowEndsAt,
+						columns,
+						*outputPath,
+						*outputType,
+					); err != nil {
+						logrus.WithFields(logrus.Fields{
+							"file":    inputPath,
+							"message": err.Error(),
+						}).Error("PRS")
+					} else {
+						logrus.WithFields(logrus.Fields{
+							"file": outputFile,
+						}).Info("PRS")
+						if !*isTransfer {
+							return nil
+						}
+						logrus.WithFields(logrus.Fields{
+							"file":    inputPath,
+							"message": "start",
+						}).Debug("SND")
+						if err := Send(
+							*hostKey,
+							*userName,
+							*password,
+							inputPath,
+							outputFile,
+							*outputType,
+							*remoteOutputPath,
+						); err != nil {
+							logrus.WithFields(logrus.Fields{
+								"file":    inputPath,
+								"message": err.Error(),
+							}).Error("SND")
+						} else {
+							logrus.WithFields(logrus.Fields{
+								"file":    inputPath,
+								"message": "sent",
+							}).Info("SND")
+						}
+					}
+					return nil
+				}); err != nil {
+				logrus.WithFields(logrus.Fields{
+					"path":    inputPath,
+					"message": err.Error(),
+				}).Error("ADD")
+			}
 			return
 		}
-		logrus.SetFormatter(&logrus.TextFormatter{
-			DisableColors:          true,
-			DisableLevelTruncation: false,
-		})
-		switch *logLevel {
-		case "debug":
-			logrus.SetLevel(logrus.DebugLevel)
-		default:
-			logrus.SetLevel(logrus.InfoLevel)
-		}
-
-		logrus.WithFields(logrus.Fields{
-			"logfile":  logFile,
-			"loglevel": *logLevel,
-		}).Info("LOG")
-
-		logrus.WithFields(logrus.Fields{
-			"hostkey": *hostKey,
-		}).Debug("LOG")
-
 		watcher, _ = fsnotify.NewWatcher()
 		defer watcher.Close()
 		done := make(chan bool)
