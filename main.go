@@ -2,6 +2,8 @@
 // parse -file ../20190722-Nova314--分析需求表-贝瑞\(1\).xlsm -path /tmp/ -from 2 -sheet 1 -to -1 -type csv
 // watch -directory /tmp/watcher -from 2 -sheet 1 -to -1 -type csv
 // send -username wuy -password igenetech -hostkey "192.168.1.96 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLjYGzkYWF+a1KV2NDjEtjzfa0pPbukZN8Ul2vCRRVdZ02+RkN5mnYiUiL44BcezCyoWf4vwCuRSCuy8FMSVa38=" -sourcefile test -targetfile /tmp/from25
+
+// ./main parse -path=/tmp/watcher -sheet=1 -columns=1,2,3,4,5,9,11 -from=2 -to=-1 -output=output/ -remotepath=/root/testauto -transfer=true -username=root -password=***REMOVED*** -watch=true -interval=1
 package main
 
 import (
@@ -19,19 +21,20 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
 	WATCHER_DIRECTORY = "watcher"
 )
 
+var watcher *fsnotify.Watcher
+
 func usage() {
 	fmt.Println("Usage: parse_excel <command> [<args>]")
 	fmt.Println()
 	fmt.Println("Availabve commands are: ")
 	fmt.Println("    parse: Parse the excel directory.")
-	fmt.Println("    send: Send file to remote directory.")
-	fmt.Println("    watch: Watch a directory and parse the excel when created.")
 }
 
 func main() {
@@ -40,149 +43,143 @@ func main() {
 		return
 	}
 
-	parseCommand := flag.NewFlagSet("parse", flag.ExitOnError)
-	pfileName := parseCommand.String(
-		"file",
+	parseCommand := flag.NewFlagSet("parse", flag.ExitOnError) // {{{
+	inputPath := parseCommand.String(
+		"path",
 		"test.xlsx",
-		"",
+		"filename or directory to parse",
 	)
-	psheetIndex := parseCommand.Int(
+	sheetIndex := parseCommand.Int(
 		"sheet",
-		1,
+		0,
 		"sheet index",
 	)
-	prowStartsAt := parseCommand.Int(
+	rowStartsAt := parseCommand.Int(
 		"from",
-		2,
+		1,
 		"first row index of the range",
 	)
-	prowEndsAt := parseCommand.Int(
+	rowEndsAt := parseCommand.Int(
 		"to",
-		-1,
+		10,
 		"last row index of the range, '-1' means all the rest rows",
 	)
-	pcolumnIndices := parseCommand.String(
+	columnIndices := parseCommand.String(
 		"columns",
-		"1,2,3,4,5,9,11",
+		"1,3,5,7,11",
 		"colmuns to be extracted",
 	)
-	poutputType := parseCommand.String(
+	outputType := parseCommand.String(
 		"type",
-		"txt",
+		"xlsx",
 		"type of output file, csv, txt or xlsx",
 	)
-	poutputPath := parseCommand.String(
-		"path",
-		"_",
-		"path of output file, '_' means same folder of the input file",
-	)
-
-	sendCommand := flag.NewFlagSet("send", flag.ExitOnError)
-	hostKey := sendCommand.String(
-		"hostkey",
-		"***REMOVED***",
-		"lines in ./ssh/known_host",
-	)
-	userName := sendCommand.String(
-		"username",
-		"root",
-		"user name to use when connecting to remote server",
-	)
-	password := sendCommand.String(
-		"password",
+	outputPath := parseCommand.String(
+		"output",
 		"",
-		"password to use when connecting to remote server",
+		"path of output directory",
 	)
-	sourceFile := sendCommand.String(
-		"sourcefile",
+	remoteOutputPath := parseCommand.String(
+		"remotepath",
 		"",
-		"the source file to send to remote server",
+		"path of output directory",
 	)
-	targetFile := sendCommand.String(
-		"targetfile",
-		"",
-		"the target file to send to remote server",
-	)
-
-	watchCommand := flag.NewFlagSet("watch", flag.ExitOnError)
-	watchPath := watchCommand.String(
-		"directory",
-		"/tmp/watch",
-		"the path of directory to watch",
-	)
-	wsheetIndexp := watchCommand.Int(
-		"sheet",
-		1,
-		"sheet index",
-	)
-	wrowStartsAtp := watchCommand.Int(
-		"from",
-		2,
-		"first row index of the range",
-	)
-	wrowEndsAtp := watchCommand.Int(
-		"to",
-		-1,
-		"last row index of the range, '-1' means all the rest rows",
-	)
-	wcolumnIndices := watchCommand.String(
-		"columns",
-		"0,1,2,3,4,9,11",
-		"colmuns to be extracted",
-	)
-	woutputType := watchCommand.String(
-		"type",
-		"csv",
-		"type of output file, csv or xlsx",
-	)
-	dryRun := watchCommand.Bool(
-		"dry",
+	isTransfer := parseCommand.Bool(
+		"transfer",
 		false,
-		"perform a trial run with no data sent",
+		"enable output file transfer",
 	)
-	whostKey := watchCommand.String(
+	hostKey := parseCommand.String(
 		"hostkey",
 		"***REMOVED***",
 		"lines in ./ssh/known_host",
 	)
-	wuserName := watchCommand.String(
+	userName := parseCommand.String(
 		"username",
 		"root",
 		"user name to use when connecting to remote server",
 	)
-	wpassword := watchCommand.String(
+	password := parseCommand.String(
 		"password",
 		"",
 		"password to use when connecting to remote server",
 	)
-	wsourceFile := watchCommand.String(
-		"sourcefile",
-		"",
-		"the source file to send to remote server",
+	isWatch := parseCommand.Bool(
+		"watch",
+		false,
+		"enable to watch the directory",
 	)
-	wtargetFile := watchCommand.String(
-		"targetfile",
-		"",
-		"the target file to send to remote server",
-	)
+	interval := parseCommand.Int(
+		"interval",
+		60,
+		"interval of walking through the folders, not for files",
+	) // }}}
 
 	switch os.Args[1] {
 	case "parse":
 		parseCommand.Parse(os.Args[2:])
-	case "send":
-		sendCommand.Parse(os.Args[2:])
-	case "watch":
-		watchCommand.Parse(os.Args[2:])
 	case "-h":
 		usage()
+		return
 	default:
 		fmt.Printf("invalid command: %q", os.Args[1])
+		return
 	}
 
-	if watchCommand.Parsed() {
+	if parseCommand.Parsed() {
 
-		logFile := filepath.Join(WATCHER_DIRECTORY, "log.txt")
-		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		fmt.Println(
+			*inputPath,
+			*sheetIndex,
+			*rowStartsAt,
+			*rowEndsAt,
+			*columnIndices,
+			*outputPath,
+			*outputType,
+			*isTransfer,
+			*isWatch,
+			*interval,
+			*userName,
+			*password,
+			*hostKey,
+			*isTransfer,
+			*remoteOutputPath,
+		)
+		columns, err := ParseColumnIndices(*columnIndices)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		isFolder, err := IsFolder(*inputPath)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		if !isFolder {
+			if outputFile, err := Extract(
+				*inputPath,
+				*sheetIndex,
+				*rowStartsAt,
+				*rowEndsAt,
+				columns,
+				*outputPath,
+				*outputType,
+			); err != nil {
+				log.Println(err)
+				return
+			} else {
+				log.Println(outputFile)
+				return
+			}
+			return
+		}
+		// is folder
+		if !*isWatch {
+			// TODO: parse all the files
+		}
+		// is folder and watch
+		logFile := filepath.Join(*inputPath, "log.txt")
+		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err == nil {
 			logrus.SetOutput(file)
 		} else {
@@ -190,19 +187,12 @@ func main() {
 			return
 		}
 		logrus.SetFormatter(&logrus.TextFormatter{
-			DisableColors: true,
+			DisableColors:          true,
+			DisableLevelTruncation: false,
 		})
 		logrus.SetLevel(logrus.TraceLevel)
-		columnIndices, err := ParseColumnIndices(*wcolumnIndices)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		watcher, err := fsnotify.NewWatcher()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
+
+		watcher, _ = fsnotify.NewWatcher()
 		defer watcher.Close()
 		done := make(chan bool)
 		go func() {
@@ -218,13 +208,14 @@ func main() {
 						}).Info("NEW")
 						if outputFile, err := Extract(
 							event.Name,
-							*wsheetIndexp,
-							*wrowStartsAtp,
-							*wrowEndsAtp,
-							columnIndices,
-							WATCHER_DIRECTORY,
-							*woutputType,
+							*sheetIndex,
+							*rowStartsAt,
+							*rowEndsAt,
+							columns,
+							*outputPath,
+							*outputType,
 						); err != nil {
+							log.Println(err)
 							logrus.WithFields(logrus.Fields{
 								"file":    event.Name,
 								"message": err.Error(),
@@ -234,14 +225,17 @@ func main() {
 							logrus.WithFields(logrus.Fields{
 								"file": outputFile,
 							}).Info("PRC")
-						}
-						if !*dryRun {
+							if !*isTransfer {
+								continue
+							}
 							if err := Send(
-								*whostKey,
-								*wuserName,
-								*wpassword,
-								*wsourceFile,
-								*wtargetFile,
+								*hostKey,
+								*userName,
+								*password,
+								event.Name,
+								outputFile,
+								*outputType,
+								*remoteOutputPath,
 							); err != nil {
 								log.Println(err)
 							}
@@ -255,48 +249,47 @@ func main() {
 				}
 			}
 		}()
-		err = watcher.Add(*watchPath)
-		if err != nil {
-			fmt.Println(err)
-		}
+		go Watch(*inputPath, *interval)
 		<-done
 	}
+}
 
-	if parseCommand.Parsed() {
-		columnIndices, err := ParseColumnIndices(*pcolumnIndices)
-		if err != nil {
+func IsFolder(inputpath string) (isFolder bool, err error) { // {{{
+	f, err := os.Stat(inputpath)
+	if err != nil {
+		return isFolder, err
+	}
+	return f.Mode().IsDir(), nil
+} // }}}
+
+func Watch(inputPath string, duration int) {
+	done := make(chan struct{})
+	go func() {
+		done <- struct{}{}
+	}()
+	ticker := time.NewTicker(time.Duration(duration) * time.Second)
+	defer ticker.Stop()
+	//for _ = range ticker.C {
+	for ; true; <-ticker.C {
+		<-done
+		if err := filepath.Walk(inputPath, addToWatcher); err != nil {
 			fmt.Println(err)
-			return
+			logrus.WithFields(logrus.Fields{
+				"path":    inputPath,
+				"message": err.Error(),
+			}).Error("ADD")
 		}
-		if outputFile, err := Extract(
-			*pfileName,
-			*psheetIndex,
-			*prowStartsAt,
-			*prowEndsAt,
-			columnIndices,
-			*poutputPath,
-			*poutputType,
-		); err != nil {
-			log.Println(err)
-			return
-		} else {
-			log.Println(outputFile)
-			return
-		}
+		go func() {
+			done <- struct{}{}
+		}()
 	}
-
-	if sendCommand.Parsed() {
-		if err := Send(
-			*hostKey,
-			*userName,
-			*password,
-			*sourceFile,
-			*targetFile,
-		); err != nil {
-			log.Println(err)
-		}
+}
+func addToWatcher(inputPath string, f os.FileInfo, err error) error {
+	if f.Mode().IsDir() {
+		fmt.Println("add", inputPath)
+		return watcher.Add(inputPath)
 	}
-
+	return nil
 }
 
 func NewFileName(outputPath, name, ext string) string { // {{{
@@ -379,12 +372,14 @@ func Extract( // {{{
 	return outputFile, nil
 } // }}}
 
-func Send(
+func Send( // {{{
 	hostKey string,
 	username string,
 	password string,
 	sourceFile string,
-	targetFile string,
+	outputFile string,
+	outputType string,
+	remoteOutputPath string,
 ) error {
 	if username == "" {
 		return fmt.Errorf("missing username")
@@ -394,9 +389,6 @@ func Send(
 	}
 	if sourceFile == "" {
 		return fmt.Errorf("missing sourcefile")
-	}
-	if targetFile == "" {
-		return fmt.Errorf("missing targetfile")
 	}
 
 	_, hosts, pubKey, _, _, err := ssh.ParseKnownHosts([]byte(hostKey))
@@ -428,23 +420,26 @@ func Send(
 	}
 	defer client.Close()
 
-	dir, _ := filepath.Split(targetFile)
-	if dir != "" && dir != "./" && dir != "~/" {
-		if client.MkdirAll(dir) != nil {
+	remoteDir, remoteFile := MakeRemoteFile(sourceFile, remoteOutputPath, outputType)
+
+	fmt.Println(">>>", remoteFile)
+	if remoteDir != "" && remoteDir != "./" && remoteDir != "~/" {
+		if client.MkdirAll(remoteDir) != nil {
 			return fmt.Errorf(
-				"failed to create target directory '%s': %v",
-				dir,
+				"failed to create remote directory '%s': %v",
+				remoteDir,
 				err,
 			)
 		}
 	}
-	dstFile, err := client.Create(targetFile)
+	dstFile, err := client.Create(remoteFile)
 	if err != nil {
 		return fmt.Errorf("failed to create target file: %v", err)
 	}
 	defer dstFile.Close()
 
-	srcFile, err := os.Open(sourceFile)
+	fmt.Println(">>>", outputFile)
+	srcFile, err := os.Open(outputFile)
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %v", err)
 	}
@@ -455,4 +450,19 @@ func Send(
 	}
 	fmt.Printf("%d bytes copied\n", bytes)
 	return nil
+} // }}}
+
+func MakeRemoteFile(sourceFile string, remoteOutputPath string, outputType string) (string, string) {
+	sourceDir, sourceFile := filepath.Split(sourceFile)
+	monthDir := path.Base(sourceDir)
+	remoteDir := filepath.Join(remoteOutputPath, monthDir)
+	sourceFileName := strings.TrimSuffix(sourceFile, path.Ext(sourceFile))
+	remoteFileName := fmt.Sprintf(
+		"%v.%v",
+		sourceFileName,
+		outputType,
+	)
+	remoteDir = filepath.Join(remoteDir, sourceFileName)
+	remoteFile := filepath.Join(remoteDir, remoteFileName)
+	return remoteDir, remoteFile
 }
