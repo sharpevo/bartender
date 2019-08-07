@@ -277,7 +277,7 @@ func IsFolder(inputpath string) (isFolder bool, err error) { // {{{
 	return f.Mode().IsDir(), nil
 } // }}}
 
-func Watch(inputPath string, duration int) {
+func Watch(inputPath string, duration int) { // {{{
 	done := make(chan struct{})
 	go func() {
 		done <- struct{}{}
@@ -296,8 +296,9 @@ func Watch(inputPath string, duration int) {
 			done <- struct{}{}
 		}()
 	}
-}
-func addToWatcher(inputPath string, f os.FileInfo, err error) error {
+} // }}}
+
+func addToWatcher(inputPath string, f os.FileInfo, err error) error { // {{{
 	if f.Mode().IsDir() {
 		logrus.WithFields(logrus.Fields{
 			"file": inputPath,
@@ -305,7 +306,7 @@ func addToWatcher(inputPath string, f os.FileInfo, err error) error {
 		return watcher.Add(inputPath)
 	}
 	return nil
-}
+} // }}}
 
 func NewFileName(outputPath, name, ext string) string { // {{{
 	dir, file := filepath.Split(name)
@@ -473,7 +474,7 @@ func Send( // {{{
 	return nil
 } // }}}
 
-func MakeRemoteFile(sourceFile string, remoteOutputPath string, outputType string) (string, string) {
+func MakeRemoteFile(sourceFile string, remoteOutputPath string, outputType string) (string, string) { // {{{
 	sourceDir, sourceFile := filepath.Split(sourceFile)
 	monthDir := path.Base(sourceDir)
 	remoteDir := filepath.Join(remoteOutputPath, monthDir)
@@ -486,4 +487,4 @@ func MakeRemoteFile(sourceFile string, remoteOutputPath string, outputType strin
 	remoteDir = filepath.Join(remoteDir, sourceFileName)
 	remoteFile := filepath.Join(remoteDir, remoteFileName)
 	return remoteDir, remoteFile
-}
+} // }}}
