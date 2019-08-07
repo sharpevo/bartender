@@ -25,10 +25,6 @@ import (
 	"time"
 )
 
-const (
-	WATCHER_DIRECTORY = "watcher"
-)
-
 var watcher *fsnotify.Watcher
 
 func usage() {
@@ -130,6 +126,7 @@ func main() {
 		return
 	default:
 		fmt.Printf("invalid command: %q", os.Args[1])
+		usage()
 		return
 	}
 
@@ -147,13 +144,12 @@ func main() {
 
 		logFile := filepath.Join(*outputPath, "log.txt")
 		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err == nil {
-			mw := io.MultiWriter(os.Stdout, file)
-			logrus.SetOutput(mw)
-		} else {
+		if err != nil {
 			fmt.Println("failed to open log file:", logFile)
 			return
 		}
+		mw := io.MultiWriter(os.Stdout, file)
+		logrus.SetOutput(mw)
 		logrus.SetFormatter(&logrus.TextFormatter{
 			DisableColors:          true,
 			DisableLevelTruncation: false,
