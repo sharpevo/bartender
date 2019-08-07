@@ -165,7 +165,20 @@ func main() {
 			"loglevel": *logLevel,
 		}).Info("LOG")
 		logrus.WithFields(logrus.Fields{
-			"hostkey": *hostKey,
+			"inputpath":  *inputPath,
+			"sheet":      *sheetIndex,
+			"rowstart":   *rowStartsAt,
+			"rowend":     *rowEndsAt,
+			"columns":    *columnIndices,
+			"outputpath": *outputPath,
+			"outputtype": *outputType,
+			"hostkey":    *hostKey,
+			"username":   *userName,
+			"password":   *password,
+			"remotepath": *remoteOutputPath,
+			"transfer":   *isTransfer,
+			"watch":      *isWatch,
+			"interval":   *interval,
 		}).Debug("LOG")
 
 		if !isFolder {
