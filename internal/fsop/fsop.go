@@ -45,4 +45,16 @@ func ConvertColumnIndices(columnIndices string) (output []int, err error) { // {
 		output = append(output, indexi)
 	}
 	return output, nil
-}
+} // }}}
+
+func MakeOutputFilePath(outputPath string, fileName string, ext string) string { // {{{
+	_, file := filepath.Split(fileName)
+	return filepath.Join(
+		outputPath,
+		fmt.Sprintf(
+			"%v.%v",
+			strings.TrimSuffix(file, path.Ext(file)),
+			ext,
+		),
+	)
+} // }}}

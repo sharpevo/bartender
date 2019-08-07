@@ -19,9 +19,7 @@ import (
 	"io"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -373,21 +371,6 @@ func addToWatcher(inputPath string, f os.FileInfo, err error) error { // {{{
 	return nil
 } // }}}
 
-func NewFileName(outputPath, name, ext string) string { // {{{
-	dir, file := filepath.Split(name)
-	if outputPath != "_" {
-		dir = outputPath
-	}
-	return filepath.Join(
-		dir,
-		fmt.Sprintf(
-			"%v.%v",
-			strings.TrimSuffix(file, path.Ext(file)),
-			ext,
-		),
-	)
-} // }}}
-
 func Extract( // {{{
 	fileName string,
 	sheetIndex int,
@@ -407,7 +390,7 @@ func Extract( // {{{
 	if err != nil {
 		return outputFile, err
 	}
-	outputFile = NewFileName(
+	outputFile = fsop.MakeOutputFilePath(
 		outputPath,
 		fileName,
 		outputType,
