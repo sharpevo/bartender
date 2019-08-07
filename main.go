@@ -8,6 +8,7 @@
 package main
 
 import (
+	"automation/parser/internal/fsop"
 	"excel"
 	"flag"
 	"fmt"
@@ -509,7 +510,8 @@ func Send( // {{{
 	}
 	defer client.Close()
 
-	remoteDir, remoteFile := MakeRemoteFile(sourceFile, remoteOutputPath, outputType)
+	remoteDir, remoteFile := fsop.MakeRemoteFileWithinNameFolder(
+		sourceFile, remoteOutputPath, outputType)
 	logrus.WithFields(logrus.Fields{
 		"outputFile": outputFile,
 		"remoteDir":  remoteDir,
@@ -545,19 +547,4 @@ func Send( // {{{
 	}).Debug("SND")
 
 	return nil
-} // }}}
-
-func MakeRemoteFile(sourceFile string, remoteOutputPath string, outputType string) (string, string) { // {{{
-	sourceDir, sourceFile := filepath.Split(sourceFile)
-	monthDir := path.Base(sourceDir)
-	remoteDir := filepath.Join(remoteOutputPath, monthDir)
-	sourceFileName := strings.TrimSuffix(sourceFile, path.Ext(sourceFile))
-	remoteFileName := fmt.Sprintf(
-		"%v.%v",
-		sourceFileName,
-		outputType,
-	)
-	remoteDir = filepath.Join(remoteDir, sourceFileName)
-	remoteFile := filepath.Join(remoteDir, remoteFileName)
-	return remoteDir, remoteFile
 } // }}}
