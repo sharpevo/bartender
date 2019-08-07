@@ -45,7 +45,7 @@ func main() {
 
 	parseCommand := flag.NewFlagSet("parse", flag.ExitOnError) // {{{
 	inputPath := parseCommand.String(
-		"path",
+		"inputpath",
 		"test.xlsx",
 		"filename or directory to parse",
 	)
@@ -55,27 +55,27 @@ func main() {
 		"sheet index",
 	)
 	rowStartsAt := parseCommand.Int(
-		"from",
-		1,
+		"rowstart",
+		0,
 		"first row index of the range",
 	)
 	rowEndsAt := parseCommand.Int(
-		"to",
-		10,
+		"rowend",
+		-1,
 		"last row index of the range, '-1' means all the rest rows",
 	)
 	columnIndices := parseCommand.String(
 		"columns",
-		"1,3,5,7,11",
+		"0,3,5,7,11",
 		"colmuns to be extracted",
 	)
 	outputType := parseCommand.String(
-		"type",
+		"outputtype",
 		"xlsx",
 		"type of output file, csv, txt or xlsx",
 	)
 	outputPath := parseCommand.String(
-		"output",
+		"outputpath",
 		"",
 		"path of output directory",
 	)
