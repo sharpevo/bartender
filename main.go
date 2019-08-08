@@ -490,6 +490,12 @@ func Send( // {{{
 	if err != nil {
 		return fmt.Errorf("failed to create target file: %v", err)
 	}
+	if client.Chmod(remoteFile, os.FileMode(0755)) != nil {
+		logrus.WithFields(logrus.Fields{
+			"file":    remoteFile,
+			"message": "failed to chmod",
+		}).Error("SND")
+	}
 	defer dstFile.Close()
 
 	srcFile, err := os.Open(outputFile)
