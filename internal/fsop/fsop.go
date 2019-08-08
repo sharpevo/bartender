@@ -9,7 +9,11 @@ import (
 	"strings"
 )
 
-func MakeRemoteFileWithinNameFolder(sourceFilePath string, remoteOutputPath string, outputType string) (string, string) { // {{{
+func MakeRemoteFileWithinNameFolder(
+	sourceFilePath string,
+	remoteOutputPath string,
+	outputType string,
+) (string, string) { // {{{
 	sourceDir, sourceFile := filepath.Split(sourceFilePath)
 	monthDir := path.Base(sourceDir)
 	remoteDir := filepath.Join(remoteOutputPath, monthDir)
