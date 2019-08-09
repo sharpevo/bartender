@@ -347,7 +347,7 @@ func Watch(inputPath string, duration int) { // {{{
 	}()
 	ticker := time.NewTicker(time.Duration(duration) * time.Second)
 	defer ticker.Stop()
-	for ; true; <-ticker.C {
+	for ; ; <-ticker.C {
 		<-done
 		if err := filepath.Walk(inputPath, addToWatcher); err != nil {
 			logrus.WithFields(logrus.Fields{
