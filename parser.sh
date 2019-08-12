@@ -1,4 +1,5 @@
 #!/bin/bash
+cd /opt/automation/
 ./parser parse \
     -inputpath=/public/home/link/chart \
     -sheet=1 \
@@ -6,7 +7,7 @@
     -rowend=-1 \
     -columns=1,2,3,4,5,9,11 \
     -outputtype=txt \
-    -outputpath=output/ \
+    -outputpath=parser.output/ \
     -remotepath=/root/upload \
     -transfer=true \
     -hostkey="***REMOVED***" \
