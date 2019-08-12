@@ -193,7 +193,7 @@ func main() {
 		return
 	}
 
-	if parseCommand.Parsed() {
+	if parseCommand.Parsed() { // {{{
 		columns, err := fsop.ConvertColumnIndices(parseParseOptions.ColumnIndices)
 		if err != nil {
 			fmt.Println(err)
@@ -263,8 +263,7 @@ func main() {
 			return
 		}
 		// is folder
-		if !parseWatchOptions.Enabled {
-			// TODO: parse all the files and transfer
+		if !parseWatchOptions.Enabled { // {{{
 			if err := filepath.Walk(
 				parseParseOptions.InputPath,
 				func(
@@ -330,7 +329,7 @@ func main() {
 				}).Error("PRS")
 			}
 			return
-		}
+		} // }}}
 		watcher, _ = fsnotify.NewWatcher()
 		defer watcher.Close()
 		done := make(chan bool)
@@ -402,6 +401,7 @@ func main() {
 		}()
 		go Watch(parseParseOptions.InputPath, parseWatchOptions.Interval)
 		<-done
+	} // }}}
 	}
 }
 
