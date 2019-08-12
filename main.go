@@ -162,6 +162,20 @@ func AttachLogOptions(cmd *flag.FlagSet) *LogOptions {
 
 var watcher *fsnotify.Watcher
 
+func init() {
+	logFile, err := os.OpenFile("log.txt", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		fmt.Println("failed to open log file 'log.txt'")
+		return
+	}
+	mw := io.MultiWriter(os.Stdout, logFile)
+	logrus.SetOutput(mw)
+	logrus.SetFormatter(&logrus.TextFormatter{
+		DisableColors:          true,
+		DisableLevelTruncation: false,
+	})
+
+}
 func usage() {
 	fmt.Println("Usage: parse_excel <command> [<args>]")
 	fmt.Println()
@@ -205,18 +219,6 @@ func main() {
 			return
 		}
 
-		logFile := filepath.Join(parseParseOptions.OutputPath, "log.txt")
-		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err != nil {
-			fmt.Println("failed to open log file:", logFile)
-			return
-		}
-		mw := io.MultiWriter(os.Stdout, file)
-		logrus.SetOutput(mw)
-		logrus.SetFormatter(&logrus.TextFormatter{
-			DisableColors:          true,
-			DisableLevelTruncation: false,
-		})
 		switch parseLogOptions.Level {
 		case "debug":
 			logrus.SetLevel(logrus.DebugLevel)
@@ -224,7 +226,6 @@ func main() {
 			logrus.SetLevel(logrus.InfoLevel)
 		}
 		logrus.WithFields(logrus.Fields{
-			"logfile":  logFile,
 			"loglevel": parseLogOptions.Level,
 		}).Info("LOG")
 		logrus.WithFields(logrus.Fields{
