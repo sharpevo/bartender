@@ -4,7 +4,7 @@ import (
 	"flag"
 )
 
-type ParseOptions struct {
+type Options struct {
 	InputPath     string
 	SheetIndex    int
 	RowStartsAt   int
@@ -14,8 +14,8 @@ type ParseOptions struct {
 	OutputPath    string
 }
 
-func AttachParseOptions(cmd *flag.FlagSet) *ParseOptions {
-	options := &ParseOptions{}
+func AttachOptions(cmd *flag.FlagSet) *Options {
+	options := &Options{}
 	cmd.StringVar(
 		&options.InputPath,
 		"inputpath",

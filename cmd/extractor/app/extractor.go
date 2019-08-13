@@ -19,7 +19,7 @@ type ExtractCommand struct {
 	LogOptions    *commonOptions.LogOptions
 	ServerOptions *commonOptions.ServerOptions
 	WatchOptions  *commonOptions.WatchOptions
-	ParseOptions  *options.ParseOptions
+	Options       *options.Options
 	Recursive     bool
 	Columns       []int
 }
@@ -29,17 +29,17 @@ func NewExtractCommand() *ExtractCommand {
 		LogOptions:    commonOptions.AttachLogOptions(flag.CommandLine),
 		ServerOptions: commonOptions.AttachServerOptions(flag.CommandLine),
 		WatchOptions:  commonOptions.AttachWatchOptions(flag.CommandLine),
-		ParseOptions:  options.AttachParseOptions(flag.CommandLine),
+		Options:       options.AttachOptions(flag.CommandLine),
 	}
 }
 
 func (c *ExtractCommand) Validate() (err error) {
 	flag.Parse()
-	c.Columns, err = fsop.ConvertColumnIndices(c.ParseOptions.ColumnIndices)
+	c.Columns, err = fsop.ConvertColumnIndices(c.Options.ColumnIndices)
 	if err != nil {
 		return err
 	}
-	c.Recursive, err = fsop.IsDir(c.ParseOptions.InputPath)
+	c.Recursive, err = fsop.IsDir(c.Options.InputPath)
 	if err != nil {
 		return err
 	}
@@ -55,14 +55,14 @@ func (c *ExtractCommand) Validate() (err error) {
 		"logOptions":    commonOptions.Debug(c.LogOptions),
 		"watchOptions":  commonOptions.Debug(c.WatchOptions),
 		"serverOptions": commonOptions.Debug(c.ServerOptions),
-		"parseOptions":  commonOptions.Debug(c.ParseOptions),
+		"options":       commonOptions.Debug(c.Options),
 	}).Debug("LOG")
 	return nil
 }
 
 func (c *ExtractCommand) Execute() error {
 	if !c.Recursive {
-		outputFile, err := c.Extract(c.ParseOptions.InputPath)
+		outputFile, err := c.Extract(c.Options.InputPath)
 		if err != nil {
 			return err
 		}
@@ -86,9 +86,9 @@ func (c *ExtractCommand) Execute() error {
 			}
 			return nil
 		}
-		if err := filepath.Walk(c.ParseOptions.InputPath, walkfunc); err != nil {
+		if err := filepath.Walk(c.Options.InputPath, walkfunc); err != nil {
 			logrus.WithFields(logrus.Fields{
-				"path":    c.ParseOptions.InputPath,
+				"path":    c.Options.InputPath,
 				"message": err.Error(),
 			}).Error("PRS")
 		}
@@ -96,7 +96,7 @@ func (c *ExtractCommand) Execute() error {
 	}
 
 	watchrecur.Watch(
-		c.ParseOptions.InputPath,
+		c.Options.InputPath,
 		c.WatchOptions.Interval,
 		func(inputPath string) error {
 			logrus.WithFields(logrus.Fields{
@@ -125,7 +125,7 @@ func (c *ExtractCommand) HandleParse(inputPath string) error {
 	remoteDir, remoteFileName := fsop.CustomRemoteFileNameAndDir(
 		inputPath,
 		c.ServerOptions.Directory,
-		c.ParseOptions.OutputType,
+		c.Options.OutputType,
 	)
 	if sshtrans.TransViaPassword(
 		c.ServerOptions.HostKey,
@@ -143,20 +143,20 @@ func (c *ExtractCommand) HandleParse(inputPath string) error {
 func (c *ExtractCommand) Extract(inputPath string) (outputFile string, err error) {
 	data, err := excel.ExtractColumns(
 		inputPath,
-		c.ParseOptions.SheetIndex,
-		c.ParseOptions.RowStartsAt,
-		c.ParseOptions.RowEndsAt,
+		c.Options.SheetIndex,
+		c.Options.RowStartsAt,
+		c.Options.RowEndsAt,
 		c.Columns,
 	)
 	if err != nil {
 		return outputFile, err
 	}
 	outputFile = fsop.MakeOutputFilePath(
-		c.ParseOptions.OutputPath,
+		c.Options.OutputPath,
 		inputPath,
-		c.ParseOptions.OutputType,
+		c.Options.OutputType,
 	)
-	switch c.ParseOptions.OutputType {
+	switch c.Options.OutputType {
 	case excel.OUTPUT_TYPE_CSV, excel.OUTPUT_TYPE_TXT:
 		if excel.MakeFileCSV(
 			outputFile,
@@ -176,7 +176,7 @@ func (c *ExtractCommand) Extract(inputPath string) (outputFile string, err error
 	default:
 		return outputFile, fmt.Errorf(
 			"invalid file type '%v'",
-			c.ParseOptions.OutputType,
+			c.Options.OutputType,
 		)
 	}
 	logrus.WithFields(logrus.Fields{
