@@ -114,9 +114,7 @@ func (c *ExtractCommand) Execute() error {
 	return nil
 }
 
-func (c *ExtractCommand) HandleParse(
-	inputPath string,
-) error {
+func (c *ExtractCommand) HandleParse(inputPath string) error {
 	outputFile, err := c.Extract(inputPath)
 	if err != nil {
 		return err
