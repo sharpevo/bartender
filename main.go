@@ -538,99 +538,6 @@ func Send( // {{{
 	hostKey string,
 	username string,
 	password string,
-	sourceFile string,
-	outputFile string,
-	outputType string,
-	remoteOutputPath string,
-) error {
-	if username == "" {
-		return fmt.Errorf("missing username")
-	}
-	if password == "" {
-		return fmt.Errorf("missing password")
-	}
-	if sourceFile == "" {
-		return fmt.Errorf("missing sourcefile")
-	}
-
-	_, hosts, pubKey, _, _, err := ssh.ParseKnownHosts([]byte(hostKey))
-	if err != nil {
-		return fmt.Errorf("invalid host key: %v", err)
-	}
-	if len(hosts) < 1 {
-		return fmt.Errorf("invalid host: %v", hosts)
-	}
-	config := &ssh.ClientConfig{
-		User: username,
-		Auth: []ssh.AuthMethod{
-			ssh.Password(password),
-		},
-		HostKeyCallback: ssh.FixedHostKey(pubKey),
-	}
-	conn, err := ssh.Dial(
-		"tcp",
-		fmt.Sprintf("%s:22", hosts[0]),
-		config,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to dial: %v", err)
-	}
-
-	client, err := sftp.NewClient(conn)
-	if err != nil {
-		return fmt.Errorf("failed to create client: %v", err)
-	}
-	defer client.Close()
-
-	remoteDir, remoteFile := fsop.MakeRemoteFileWithinNameFolder(
-		sourceFile, remoteOutputPath, outputType)
-	logrus.WithFields(logrus.Fields{
-		"outputFile": outputFile,
-		"remoteDir":  remoteDir,
-		"remoteFile": remoteFile,
-	}).Debug("SND")
-
-	if remoteDir != "" && remoteDir != "./" && remoteDir != "~/" {
-		if client.MkdirAll(remoteDir) != nil {
-			return fmt.Errorf(
-				"failed to create remote directory '%s': %v",
-				remoteDir,
-				err,
-			)
-		}
-	}
-	dstFile, err := client.Create(remoteFile)
-	if err != nil {
-		return fmt.Errorf("failed to create target file: %v", err)
-	}
-	if client.Chmod(remoteFile, os.FileMode(0755)) != nil {
-		logrus.WithFields(logrus.Fields{
-			"file":    remoteFile,
-			"message": "failed to chmod",
-		}).Error("SND")
-	}
-	defer dstFile.Close()
-
-	srcFile, err := os.Open(outputFile)
-	if err != nil {
-		return fmt.Errorf("failed to open source file: %v", err)
-	}
-
-	bytes, err := io.Copy(dstFile, srcFile)
-	if err != nil {
-		return fmt.Errorf("failed to send file: %v", err)
-	}
-	logrus.WithFields(logrus.Fields{
-		"bytesSent": bytes,
-	}).Debug("SND")
-
-	return nil
-} // }}}
-
-func Transfer( // {{{
-	hostKey string,
-	username string,
-	password string,
 	localFilepath string,
 	remoteFilename string,
 	remoteDir string,
@@ -741,20 +648,30 @@ func HandleParse( // {{{
 		"file":    inputPath,
 		"message": "start",
 	}).Debug("SND")
-	if err := Send(
+
+	remoteDir, remoteFileName := fsop.CustomRemoteFileNameAndDir(
+		inputPath,
+		parseServerOptions.Directory,
+		parseParseOptions.OutputType,
+	)
+	logrus.WithFields(logrus.Fields{
+		"outputFile":     outputFile,
+		"remoteDir":      remoteDir,
+		"remoteFileName": remoteFileName,
+	}).Debug("SND")
+	if Send(
 		parseServerOptions.HostKey,
 		parseServerOptions.UserName,
 		parseServerOptions.Password,
-		inputPath,
 		outputFile,
-		parseParseOptions.OutputType,
-		parseServerOptions.Directory,
-	); err != nil {
+		remoteFileName,
+		remoteDir,
+	) != nil {
 		return err
 	}
 	logrus.WithFields(logrus.Fields{
-		"file":    inputPath,
-		"message": "sent",
+		"local":  outputFile,
+		"remote": remoteDir,
 	}).Info("SND")
 	return nil
 } // }}}
@@ -767,7 +684,7 @@ func HandleTransfer(
 		return nil
 	}
 	_, fileName := filepath.Split(inputPath)
-	return Transfer(
+	return Send(
 		transferServerOptions.HostKey,
 		transferServerOptions.UserName,
 		transferServerOptions.Password,
