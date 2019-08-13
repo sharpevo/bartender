@@ -62,15 +62,7 @@ func (c *ExtractCommand) Validate() (err error) {
 
 func (c *ExtractCommand) Execute() error {
 	if !c.Recursive {
-		outputFile, err := Extract(
-			c.ParseOptions.InputPath,
-			c.ParseOptions.SheetIndex,
-			c.ParseOptions.RowStartsAt,
-			c.ParseOptions.RowEndsAt,
-			c.Columns,
-			c.ParseOptions.OutputPath,
-			c.ParseOptions.OutputType,
-		)
+		outputFile, err := c.Extract(c.ParseOptions.InputPath)
 		if err != nil {
 			return err
 		}
@@ -86,12 +78,7 @@ func (c *ExtractCommand) Execute() error {
 			logrus.WithFields(logrus.Fields{
 				"file": inputPath,
 			}).Info("NEW")
-			if HandleParse(
-				inputPath,
-				c.Columns,
-				c.ParseOptions,
-				c.ServerOptions,
-			) != nil {
+			if err := c.HandleParse(inputPath); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"file":    inputPath,
 					"message": err.Error(),
@@ -115,12 +102,7 @@ func (c *ExtractCommand) Execute() error {
 			logrus.WithFields(logrus.Fields{
 				"file": inputPath,
 			}).Info("NEW")
-			if err := HandleParse(
-				inputPath,
-				c.Columns,
-				c.ParseOptions,
-				c.ServerOptions,
-			); err != nil {
+			if err := c.HandleParse(inputPath); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"file":    inputPath,
 					"message": err.Error(),
@@ -132,36 +114,25 @@ func (c *ExtractCommand) Execute() error {
 	return nil
 }
 
-func HandleParse(
+func (c *ExtractCommand) HandleParse(
 	inputPath string,
-	columns []int,
-	parseOptions *options.ParseOptions,
-	serverOptions *commonOptions.ServerOptions,
 ) error {
-	outputFile, err := Extract(
-		inputPath,
-		parseOptions.SheetIndex,
-		parseOptions.RowStartsAt,
-		parseOptions.RowEndsAt,
-		columns,
-		parseOptions.OutputPath,
-		parseOptions.OutputType,
-	)
+	outputFile, err := c.Extract(inputPath)
 	if err != nil {
 		return err
 	}
-	if !serverOptions.Enabled {
+	if !c.ServerOptions.Enabled {
 		return nil
 	}
 	remoteDir, remoteFileName := fsop.CustomRemoteFileNameAndDir(
 		inputPath,
-		serverOptions.Directory,
-		parseOptions.OutputType,
+		c.ServerOptions.Directory,
+		c.ParseOptions.OutputType,
 	)
 	if sshtrans.TransViaPassword(
-		serverOptions.HostKey,
-		serverOptions.UserName,
-		serverOptions.Password,
+		c.ServerOptions.HostKey,
+		c.ServerOptions.UserName,
+		c.ServerOptions.Password,
 		outputFile,
 		remoteFileName,
 		remoteDir,
@@ -171,31 +142,23 @@ func HandleParse(
 	return nil
 }
 
-func Extract(
-	fileName string,
-	sheetIndex int,
-	rowStartsAt int,
-	rowEndsAt int,
-	columnIndices []int,
-	outputPath string,
-	outputType string,
-) (outputFile string, err error) {
+func (c *ExtractCommand) Extract(inputPath string) (outputFile string, err error) {
 	data, err := excel.ExtractColumns(
-		fileName,
-		sheetIndex,
-		rowStartsAt,
-		rowEndsAt,
-		columnIndices,
+		inputPath,
+		c.ParseOptions.SheetIndex,
+		c.ParseOptions.RowStartsAt,
+		c.ParseOptions.RowEndsAt,
+		c.Columns,
 	)
 	if err != nil {
 		return outputFile, err
 	}
 	outputFile = fsop.MakeOutputFilePath(
-		outputPath,
-		fileName,
-		outputType,
+		c.ParseOptions.OutputPath,
+		inputPath,
+		c.ParseOptions.OutputType,
 	)
-	switch outputType {
+	switch c.ParseOptions.OutputType {
 	case "csv", "txt":
 		if excel.MakeFileCSV(
 			outputFile,
@@ -215,7 +178,7 @@ func Extract(
 	default:
 		return outputFile, fmt.Errorf(
 			"invalid file type '%v'",
-			outputType,
+			c.ParseOptions.OutputType,
 		)
 	}
 	logrus.WithFields(logrus.Fields{
