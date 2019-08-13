@@ -200,11 +200,11 @@ func init() {
 
 }
 func usage() {
-	fmt.Println("Usage: parse_excel <command> [<args>]")
+	fmt.Printf("Usage: %s <command> [<args>]", os.Args[0])
 	fmt.Println()
 	fmt.Println("Availabve commands are: ")
 	fmt.Println("    parse: Parse the excel directory.")
-	fmt.Println("    transfer: transfer files.")
+	fmt.Println("    transfer: Transfer files when pattern matched.")
 }
 
 func main() {
