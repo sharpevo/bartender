@@ -21,105 +21,100 @@ func NewExtractCommand() {
 	watchOptions := commonOptions.AttachWatchOptions(flag.CommandLine)
 	parseOptions := options.AttachParseOptions(flag.CommandLine)
 	flag.Parse()
-	if flag.Parsed() {
-		columns, err := fsop.ConvertColumnIndices(parseOptions.ColumnIndices)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		isFolder, err := fsop.IsDir(parseOptions.InputPath)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		switch logOptions.Level {
-		case "debug":
-			logrus.SetLevel(logrus.DebugLevel)
-		default:
-			logrus.SetLevel(logrus.InfoLevel)
-		}
+	columns, err := fsop.ConvertColumnIndices(parseOptions.ColumnIndices)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	isFolder, err := fsop.IsDir(parseOptions.InputPath)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	switch logOptions.Level {
+	case "debug":
+		logrus.SetLevel(logrus.DebugLevel)
+	default:
+		logrus.SetLevel(logrus.InfoLevel)
+	}
 
-		logrus.WithFields(logrus.Fields{
-			"logOptions":    commonOptions.Debug(logOptions),
-			"watchOptions":  commonOptions.Debug(watchOptions),
-			"serverOptions": commonOptions.Debug(serverOptions),
-			"parseOptions":  commonOptions.Debug(parseOptions),
-		}).Debug("LOG")
-		if !isFolder {
-			if outputFile, err := Extract(
-				parseOptions.InputPath,
-				parseOptions.SheetIndex,
-				parseOptions.RowStartsAt,
-				parseOptions.RowEndsAt,
-				columns,
-				parseOptions.OutputPath,
-				parseOptions.OutputType,
-			); err != nil {
-				log.Println(err)
-				return
-			} else {
-				log.Println(outputFile)
-				return
-			}
+	logrus.WithFields(logrus.Fields{
+		"logOptions":    commonOptions.Debug(logOptions),
+		"watchOptions":  commonOptions.Debug(watchOptions),
+		"serverOptions": commonOptions.Debug(serverOptions),
+		"parseOptions":  commonOptions.Debug(parseOptions),
+	}).Debug("LOG")
+
+	if !isFolder {
+		if outputFile, err := Extract(
+			parseOptions.InputPath,
+			parseOptions.SheetIndex,
+			parseOptions.RowStartsAt,
+			parseOptions.RowEndsAt,
+			columns,
+			parseOptions.OutputPath,
+			parseOptions.OutputType,
+		); err != nil {
+			log.Println(err)
+			return
+		} else {
+			log.Println(outputFile)
 			return
 		}
-		// is folder
-		if !watchOptions.Enabled {
-			if err := filepath.Walk(
-				parseOptions.InputPath,
-				func(
-					inputPath string,
-					f os.FileInfo,
-					err error,
-				) error {
-					if !f.Mode().IsRegular() {
-						return nil
-					}
-					logrus.WithFields(logrus.Fields{
-						"file": inputPath,
-					}).Info("NEW")
-					if HandleParse(
-						inputPath,
-						columns,
-						parseOptions,
-						serverOptions,
-					) != nil {
-						logrus.WithFields(logrus.Fields{
-							"file":    inputPath,
-							"message": err.Error(),
-						}).Error("PRS")
-					}
-					return nil
-				}); err != nil {
+		return
+	}
+
+	if !watchOptions.Enabled {
+		walkfunc := func(inputPath string, f os.FileInfo, err error) error {
+			if !f.Mode().IsRegular() {
+				return nil
+			}
+			logrus.WithFields(logrus.Fields{
+				"file": inputPath,
+			}).Info("NEW")
+			if HandleParse(
+				inputPath,
+				columns,
+				parseOptions,
+				serverOptions,
+			) != nil {
 				logrus.WithFields(logrus.Fields{
-					"path":    parseOptions.InputPath,
+					"file":    inputPath,
 					"message": err.Error(),
 				}).Error("PRS")
 			}
-			return
+			return nil
 		}
-		watchrecur.Watch(
-			parseOptions.InputPath,
-			watchOptions.Interval,
-			func(inputPath string) error {
-				logrus.WithFields(logrus.Fields{
-					"file": inputPath,
-				}).Info("NEW")
-				if HandleParse(
-					inputPath,
-					columns,
-					parseOptions,
-					serverOptions,
-				) != nil {
-					logrus.WithFields(logrus.Fields{
-						"file":    inputPath,
-						"message": err.Error(),
-					}).Error("PRS")
-				}
-				return nil
-			},
-		)
+		if err := filepath.Walk(parseOptions.InputPath, walkfunc); err != nil {
+			logrus.WithFields(logrus.Fields{
+				"path":    parseOptions.InputPath,
+				"message": err.Error(),
+			}).Error("PRS")
+		}
+		return
 	}
+
+	watchrecur.Watch(
+		parseOptions.InputPath,
+		watchOptions.Interval,
+		func(inputPath string) error {
+			logrus.WithFields(logrus.Fields{
+				"file": inputPath,
+			}).Info("NEW")
+			if HandleParse(
+				inputPath,
+				columns,
+				parseOptions,
+				serverOptions,
+			) != nil {
+				logrus.WithFields(logrus.Fields{
+					"file":    inputPath,
+					"message": err.Error(),
+				}).Error("PRS")
+			}
+			return nil
+		},
+	)
 }
 
 func HandleParse(
