@@ -1,8 +1,8 @@
 package main
 
 import (
-	"automation/parser/cmd/extractor/app"
-	_ "automation/parser/internal/pkg/alog"
+	"automation/cmd/extractor/app"
+	_ "automation/internal/pkg/alog"
 	//"github.com/sirupsen/logrus"
 )
 

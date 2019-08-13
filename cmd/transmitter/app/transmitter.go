@@ -1,12 +1,12 @@
 package app
 
 import (
-	commonOptions "automation/parser/cmd/options"
-	"automation/parser/cmd/transmitter/options"
+	commonOptions "automation/cmd/options"
+	"automation/cmd/transmitter/options"
 	"regexp"
 	//"automation/parser/internal/fsop"
-	"automation/parser/pkg/sshtrans"
-	"automation/parser/pkg/watchrecur"
+	"automation/pkg/sshtrans"
+	"automation/pkg/watchrecur"
 	"flag"
 	//"fmt"
 	"github.com/sirupsen/logrus"

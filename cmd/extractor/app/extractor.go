@@ -1,11 +1,11 @@
 package app
 
 import (
-	"automation/parser/cmd/extractor/options"
-	commonOptions "automation/parser/cmd/options"
-	"automation/parser/internal/fsop"
-	"automation/parser/pkg/sshtrans"
-	"automation/parser/pkg/watchrecur"
+	"automation/cmd/extractor/options"
+	commonOptions "automation/cmd/options"
+	"automation/internal/fsop"
+	"automation/pkg/sshtrans"
+	"automation/pkg/watchrecur"
 	"excel"
 	"flag"
 	"fmt"
