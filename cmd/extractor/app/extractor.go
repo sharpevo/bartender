@@ -15,23 +15,36 @@ import (
 	"path/filepath"
 )
 
-func NewExtractCommand() {
-	logOptions := commonOptions.AttachLogOptions(flag.CommandLine)
-	serverOptions := commonOptions.AttachServerOptions(flag.CommandLine)
-	watchOptions := commonOptions.AttachWatchOptions(flag.CommandLine)
-	parseOptions := options.AttachParseOptions(flag.CommandLine)
+type ExtractCommand struct {
+	LogOptions    *commonOptions.LogOptions
+	ServerOptions *commonOptions.ServerOptions
+	WatchOptions  *commonOptions.WatchOptions
+	ParseOptions  *options.ParseOptions
+	Recursive     bool
+	Columns       []int
+}
+
+func NewExtractCommand() *ExtractCommand {
+	return &ExtractCommand{
+		LogOptions:    commonOptions.AttachLogOptions(flag.CommandLine),
+		ServerOptions: commonOptions.AttachServerOptions(flag.CommandLine),
+		WatchOptions:  commonOptions.AttachWatchOptions(flag.CommandLine),
+		ParseOptions:  options.AttachParseOptions(flag.CommandLine),
+	}
+}
+
+func (c *ExtractCommand) Validate() (err error) {
 	flag.Parse()
-	columns, err := fsop.ConvertColumnIndices(parseOptions.ColumnIndices)
+	c.Columns, err = fsop.ConvertColumnIndices(c.ParseOptions.ColumnIndices)
 	if err != nil {
-		fmt.Println(err)
-		return
+		return err
 	}
-	isFolder, err := fsop.IsDir(parseOptions.InputPath)
+	c.Recursive, err = fsop.IsDir(c.ParseOptions.InputPath)
 	if err != nil {
-		fmt.Println(err)
-		return
+		return err
 	}
-	switch logOptions.Level {
+
+	switch c.LogOptions.Level {
 	case "debug":
 		logrus.SetLevel(logrus.DebugLevel)
 	default:
@@ -39,32 +52,33 @@ func NewExtractCommand() {
 	}
 
 	logrus.WithFields(logrus.Fields{
-		"logOptions":    commonOptions.Debug(logOptions),
-		"watchOptions":  commonOptions.Debug(watchOptions),
-		"serverOptions": commonOptions.Debug(serverOptions),
-		"parseOptions":  commonOptions.Debug(parseOptions),
+		"logOptions":    commonOptions.Debug(c.LogOptions),
+		"watchOptions":  commonOptions.Debug(c.WatchOptions),
+		"serverOptions": commonOptions.Debug(c.ServerOptions),
+		"parseOptions":  commonOptions.Debug(c.ParseOptions),
 	}).Debug("LOG")
+	return nil
+}
 
-	if !isFolder {
-		if outputFile, err := Extract(
-			parseOptions.InputPath,
-			parseOptions.SheetIndex,
-			parseOptions.RowStartsAt,
-			parseOptions.RowEndsAt,
-			columns,
-			parseOptions.OutputPath,
-			parseOptions.OutputType,
-		); err != nil {
-			log.Println(err)
-			return
-		} else {
-			log.Println(outputFile)
-			return
+func (c *ExtractCommand) Execute() error {
+	if !c.Recursive {
+		outputFile, err := Extract(
+			c.ParseOptions.InputPath,
+			c.ParseOptions.SheetIndex,
+			c.ParseOptions.RowStartsAt,
+			c.ParseOptions.RowEndsAt,
+			c.Columns,
+			c.ParseOptions.OutputPath,
+			c.ParseOptions.OutputType,
+		)
+		if err != nil {
+			return err
 		}
-		return
+		log.Println(outputFile)
+		return nil
 	}
 
-	if !watchOptions.Enabled {
+	if !c.WatchOptions.Enabled {
 		walkfunc := func(inputPath string, f os.FileInfo, err error) error {
 			if !f.Mode().IsRegular() {
 				return nil
@@ -74,9 +88,9 @@ func NewExtractCommand() {
 			}).Info("NEW")
 			if HandleParse(
 				inputPath,
-				columns,
-				parseOptions,
-				serverOptions,
+				c.Columns,
+				c.ParseOptions,
+				c.ServerOptions,
 			) != nil {
 				logrus.WithFields(logrus.Fields{
 					"file":    inputPath,
@@ -85,28 +99,28 @@ func NewExtractCommand() {
 			}
 			return nil
 		}
-		if err := filepath.Walk(parseOptions.InputPath, walkfunc); err != nil {
+		if err := filepath.Walk(c.ParseOptions.InputPath, walkfunc); err != nil {
 			logrus.WithFields(logrus.Fields{
-				"path":    parseOptions.InputPath,
+				"path":    c.ParseOptions.InputPath,
 				"message": err.Error(),
 			}).Error("PRS")
 		}
-		return
+		return nil
 	}
 
 	watchrecur.Watch(
-		parseOptions.InputPath,
-		watchOptions.Interval,
+		c.ParseOptions.InputPath,
+		c.WatchOptions.Interval,
 		func(inputPath string) error {
 			logrus.WithFields(logrus.Fields{
 				"file": inputPath,
 			}).Info("NEW")
-			if HandleParse(
+			if err := HandleParse(
 				inputPath,
-				columns,
-				parseOptions,
-				serverOptions,
-			) != nil {
+				c.Columns,
+				c.ParseOptions,
+				c.ServerOptions,
+			); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"file":    inputPath,
 					"message": err.Error(),
@@ -115,6 +129,7 @@ func NewExtractCommand() {
 			return nil
 		},
 	)
+	return nil
 }
 
 func HandleParse(
