@@ -223,7 +223,7 @@ func main() {
 	transferTransferOptions := AttachTransferOptions(transferCommand)
 	transferServerOptions := AttachServerOptions(transferCommand)
 	transferWatchOptions := AttachWatchOptions(transferCommand)
-	//transferLogOptions := AttachLogOptions(transferCommand)
+	transferLogOptions := AttachLogOptions(transferCommand)
 
 	switch os.Args[1] {
 	case "parse":
@@ -370,6 +370,15 @@ func main() {
 		<-done
 	} // }}}
 	if transferCommand.Parsed() { // {{{
+		switch transferLogOptions.Level {
+		case "debug":
+			logrus.SetLevel(logrus.DebugLevel)
+		default:
+			logrus.SetLevel(logrus.InfoLevel)
+		}
+		logrus.WithFields(logrus.Fields{
+			"loglevel": parseLogOptions.Level,
+		}).Info("LOG")
 		r, err := regexp.Compile(transferWatchOptions.FileNamePattern)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
