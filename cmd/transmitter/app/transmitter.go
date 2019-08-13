@@ -12,100 +12,103 @@ import (
 	"regexp"
 )
 
-func NewTransmitterCommand() {
-	logOptions := commonOptions.AttachLogOptions(flag.CommandLine)
-	watchOptions := commonOptions.AttachWatchOptions(flag.CommandLine)
-	serverOptions := commonOptions.AttachServerOptions(flag.CommandLine)
-	transferOptions := options.AttachTransferOptions(flag.CommandLine)
+type TransmitterCommand struct {
+	LogOptions      *commonOptions.LogOptions
+	ServerOptions   *commonOptions.ServerOptions
+	WatchOptions    *commonOptions.WatchOptions
+	TransferOptions *options.TransferOptions
+	Regexp          *regexp.Regexp
+}
+
+func NewTransmitterCommand() *TransmitterCommand {
+	return &TransmitterCommand{
+		LogOptions:      commonOptions.AttachLogOptions(flag.CommandLine),
+		WatchOptions:    commonOptions.AttachWatchOptions(flag.CommandLine),
+		ServerOptions:   commonOptions.AttachServerOptions(flag.CommandLine),
+		TransferOptions: options.AttachTransferOptions(flag.CommandLine),
+	}
+}
+
+func (c *TransmitterCommand) Validate() (err error) {
 	flag.Parse()
-	switch logOptions.Level {
+	switch c.LogOptions.Level {
 	case "debug":
 		logrus.SetLevel(logrus.DebugLevel)
 	default:
 		logrus.SetLevel(logrus.InfoLevel)
 	}
 	logrus.WithFields(logrus.Fields{
-		"logOptions":      commonOptions.Debug(logOptions),
-		"watchOptions":    commonOptions.Debug(watchOptions),
-		"serverOptions":   commonOptions.Debug(serverOptions),
-		"transferOptions": commonOptions.Debug(transferOptions),
+		"logOptions":      commonOptions.Debug(c.LogOptions),
+		"watchOptions":    commonOptions.Debug(c.WatchOptions),
+		"serverOptions":   commonOptions.Debug(c.ServerOptions),
+		"transferOptions": commonOptions.Debug(c.TransferOptions),
 	}).Debug("LOG")
-	r, err := regexp.Compile(watchOptions.FileNamePattern)
+	c.Regexp, err = regexp.Compile(c.WatchOptions.FileNamePattern)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
-			"path":    transferOptions.InputPath,
+			"path":    c.TransferOptions.InputPath,
 			"message": err.Error(),
 		}).Error("TRS")
 	}
+	return nil
+}
 
-	if !watchOptions.Enabled {
+func (c *TransmitterCommand) Execute() error {
+	if !c.WatchOptions.Enabled {
 		walkfunc := func(inputPath string, f os.FileInfo, err error) error {
-			if !f.Mode().IsRegular() ||
-				!r.MatchString(inputPath) {
+			if !f.Mode().IsRegular() || !c.Regexp.MatchString(inputPath) {
 				return nil
 			}
 			logrus.WithFields(logrus.Fields{
 				"file": inputPath,
 			}).Info("TRS")
-			if HandleTransfer(inputPath, serverOptions) != nil {
+			if c.HandleTransfer(inputPath) != nil {
 				logrus.WithFields(logrus.Fields{
 					"file":    inputPath,
 					"message": err.Error(),
 				}).Error("TRS")
-			} else {
-				logrus.WithFields(logrus.Fields{
-					"file":    inputPath,
-					"message": "sent",
-				}).Info("TRS")
 			}
 			return nil
 		}
-		if err := filepath.Walk(transferOptions.InputPath, walkfunc); err != nil {
+		if err := filepath.Walk(c.TransferOptions.InputPath, walkfunc); err != nil {
 			logrus.WithFields(logrus.Fields{
-				"path":    transferOptions.InputPath,
+				"path":    c.TransferOptions.InputPath,
 				"message": err.Error(),
 			}).Error("TRS")
 		}
-		return
+		return nil
 	}
 
 	watchrecur.Watch(
-		transferOptions.InputPath,
-		watchOptions.Interval,
+		c.TransferOptions.InputPath,
+		c.WatchOptions.Interval,
 		func(inputPath string) error {
-			if !r.MatchString(inputPath) {
+			if !c.Regexp.MatchString(inputPath) {
 				return nil
 			}
-			if HandleTransfer(inputPath, serverOptions) != nil {
+			if err := c.HandleTransfer(inputPath); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"file":    inputPath,
 					"message": err.Error(),
 				}).Error("TRS")
-			} else {
-				logrus.WithFields(logrus.Fields{
-					"file":    inputPath,
-					"message": "sent",
-				}).Info("TRS")
 			}
 			return nil
 		},
 	)
+	return nil
 }
 
-func HandleTransfer(
-	inputPath string,
-	transferServerOptions *commonOptions.ServerOptions,
-) error {
-	if !transferServerOptions.Enabled {
+func (c *TransmitterCommand) HandleTransfer(inputPath string) error {
+	if !c.ServerOptions.Enabled {
 		return nil
 	}
 	_, fileName := filepath.Split(inputPath)
 	return sshtrans.TransViaPassword(
-		transferServerOptions.HostKey,
-		transferServerOptions.UserName,
-		transferServerOptions.Password,
+		c.ServerOptions.HostKey,
+		c.ServerOptions.UserName,
+		c.ServerOptions.Password,
 		inputPath,
 		fileName,
-		transferServerOptions.Directory,
+		c.ServerOptions.Directory,
 	)
 }
