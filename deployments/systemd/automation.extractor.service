@@ -1,0 +1,16 @@
+[Unit]
+Description = Automation Service - Extractor
+After = network.target
+
+[Service]
+User = igenetech
+Group = igenetech
+WorkingDirectory = /opt/automation
+ExecStart = /bin/bash /opt/automation/extractor/run.sh
+ExecStop = /bin/kill -15 $MAINPID
+PrivateTmp = true
+Restart=on-failure
+
+[Install]
+WantedBy = multi-user.target
+~
