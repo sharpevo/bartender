@@ -2,8 +2,13 @@ package options
 
 import (
 	"flag"
+	"fmt"
 	"time"
 )
+
+func Debug(i interface{}) string {
+	return fmt.Sprintf("%+v", i)
+}
 
 type ServerOptions struct {
 	Enabled   bool

@@ -29,8 +29,11 @@ func NewTransmitterCommand() {
 			logrus.SetLevel(logrus.InfoLevel)
 		}
 		logrus.WithFields(logrus.Fields{
-			"loglevel": logOptions.Level,
-		}).Info("LOG")
+			"logOptions":      commonOptions.Debug(logOptions),
+			"watchOptions":    commonOptions.Debug(watchOptions),
+			"serverOptions":   commonOptions.Debug(serverOptions),
+			"transferOptions": commonOptions.Debug(transferOptions),
+		}).Debug("LOG")
 		r, err := regexp.Compile(watchOptions.FileNamePattern)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{

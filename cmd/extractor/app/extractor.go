@@ -38,26 +38,13 @@ func NewExtractCommand() {
 		default:
 			logrus.SetLevel(logrus.InfoLevel)
 		}
-		logrus.WithFields(logrus.Fields{
-			"loglevel": logOptions.Level,
-		}).Info("LOG")
-		logrus.WithFields(logrus.Fields{
-			"inputpath":  parseOptions.InputPath,
-			"sheet":      parseOptions.SheetIndex,
-			"rowstart":   parseOptions.RowStartsAt,
-			"rowend":     parseOptions.RowEndsAt,
-			"columns":    parseOptions.ColumnIndices,
-			"outputpath": parseOptions.OutputPath,
-			"outputtype": parseOptions.OutputPath,
-			"hostkey":    serverOptions.HostKey,
-			"username":   serverOptions.UserName,
-			"password":   serverOptions.Password,
-			"remotepath": serverOptions.Directory,
-			"transfer":   serverOptions.Enabled,
-			"watch":      watchOptions.Enabled,
-			"interval":   watchOptions.Interval,
-		}).Debug("LOG")
 
+		logrus.WithFields(logrus.Fields{
+			"logOptions":    commonOptions.Debug(logOptions),
+			"watchOptions":  commonOptions.Debug(watchOptions),
+			"serverOptions": commonOptions.Debug(serverOptions),
+			"parseOptions":  commonOptions.Debug(parseOptions),
+		}).Debug("LOG")
 		if !isFolder {
 			if outputFile, err := Extract(
 				parseOptions.InputPath,
