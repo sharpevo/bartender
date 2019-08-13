@@ -310,49 +310,16 @@ func main() {
 					logrus.WithFields(logrus.Fields{
 						"file": inputPath,
 					}).Info("NEW")
-					if outputFile, err := Extract(
+					if HandleParse(
 						inputPath,
-						parseParseOptions.SheetIndex,
-						parseParseOptions.RowStartsAt,
-						parseParseOptions.RowEndsAt,
 						columns,
-						parseParseOptions.OutputPath,
-						parseParseOptions.OutputType,
-					); err != nil {
+						parseParseOptions,
+						parseServerOptions,
+					) != nil {
 						logrus.WithFields(logrus.Fields{
 							"file":    inputPath,
 							"message": err.Error(),
 						}).Error("PRS")
-					} else {
-						logrus.WithFields(logrus.Fields{
-							"file": outputFile,
-						}).Info("PRS")
-						if !parseServerOptions.Enabled {
-							return nil
-						}
-						logrus.WithFields(logrus.Fields{
-							"file":    inputPath,
-							"message": "start",
-						}).Debug("SND")
-						if err := Send(
-							parseServerOptions.HostKey,
-							parseServerOptions.UserName,
-							parseServerOptions.Password,
-							inputPath,
-							outputFile,
-							parseParseOptions.OutputType,
-							parseServerOptions.Directory,
-						); err != nil {
-							logrus.WithFields(logrus.Fields{
-								"file":    inputPath,
-								"message": err.Error(),
-							}).Error("SND")
-						} else {
-							logrus.WithFields(logrus.Fields{
-								"file":    inputPath,
-								"message": "sent",
-							}).Info("SND")
-						}
 					}
 					return nil
 				}); err != nil {
@@ -377,49 +344,16 @@ func main() {
 						logrus.WithFields(logrus.Fields{
 							"file": event.Name,
 						}).Info("NEW")
-						if outputFile, err := Extract(
+						if HandleParse(
 							event.Name,
-							parseParseOptions.SheetIndex,
-							parseParseOptions.RowStartsAt,
-							parseParseOptions.RowEndsAt,
 							columns,
-							parseParseOptions.OutputPath,
-							parseParseOptions.OutputType,
-						); err != nil {
+							parseParseOptions,
+							parseServerOptions,
+						) != nil {
 							logrus.WithFields(logrus.Fields{
 								"file":    event.Name,
 								"message": err.Error(),
 							}).Error("PRS")
-						} else {
-							logrus.WithFields(logrus.Fields{
-								"file": outputFile,
-							}).Info("PRS")
-							if !parseServerOptions.Enabled {
-								continue
-							}
-							logrus.WithFields(logrus.Fields{
-								"file":    event.Name,
-								"message": "start",
-							}).Debug("SND")
-							if err := Send(
-								parseServerOptions.HostKey,
-								parseServerOptions.UserName,
-								parseServerOptions.Password,
-								event.Name,
-								outputFile,
-								parseParseOptions.OutputType,
-								parseServerOptions.Directory,
-							); err != nil {
-								logrus.WithFields(logrus.Fields{
-									"file":    event.Name,
-									"message": err.Error(),
-								}).Error("SND")
-							} else {
-								logrus.WithFields(logrus.Fields{
-									"file":    event.Name,
-									"message": "sent",
-								}).Info("SND")
-							}
 						}
 					}
 				case err, ok := <-watcher.Errors:
@@ -775,6 +709,53 @@ func Transfer( // {{{
 		"bytesSent": bytes,
 	}).Debug("SND")
 
+	return nil
+} // }}}
+
+// TODO: log to extract and send
+func HandleParse( // {{{
+	inputPath string,
+	columns []int,
+	parseParseOptions *ParseOptions,
+	parseServerOptions *ServerOptions,
+) error {
+	outputFile, err := Extract(
+		inputPath,
+		parseParseOptions.SheetIndex,
+		parseParseOptions.RowStartsAt,
+		parseParseOptions.RowEndsAt,
+		columns,
+		parseParseOptions.OutputPath,
+		parseParseOptions.OutputType,
+	)
+	if err != nil {
+		return err
+	}
+	logrus.WithFields(logrus.Fields{
+		"file": outputFile,
+	}).Info("PRS")
+	if !parseServerOptions.Enabled {
+		return nil
+	}
+	logrus.WithFields(logrus.Fields{
+		"file":    inputPath,
+		"message": "start",
+	}).Debug("SND")
+	if err := Send(
+		parseServerOptions.HostKey,
+		parseServerOptions.UserName,
+		parseServerOptions.Password,
+		inputPath,
+		outputFile,
+		parseParseOptions.OutputType,
+		parseServerOptions.Directory,
+	); err != nil {
+		return err
+	}
+	logrus.WithFields(logrus.Fields{
+		"file":    inputPath,
+		"message": "sent",
+	}).Info("SND")
 	return nil
 } // }}}
 
