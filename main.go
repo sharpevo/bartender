@@ -531,6 +531,9 @@ func Extract( // {{{
 			outputType,
 		)
 	}
+	logrus.WithFields(logrus.Fields{
+		"file": outputFile,
+	}).Info("PRS")
 	return outputFile, nil
 } // }}}
 
@@ -542,6 +545,11 @@ func Send( // {{{
 	remoteFilename string,
 	remoteDir string,
 ) error {
+	logrus.WithFields(logrus.Fields{
+		"local":     localFilepath,
+		"remoteDir": remoteDir,
+		"message":   "sending...",
+	}).Debug("SND")
 	if username == "" {
 		return fmt.Errorf("missing username")
 	}
@@ -615,11 +623,13 @@ func Send( // {{{
 	logrus.WithFields(logrus.Fields{
 		"bytesSent": bytes,
 	}).Debug("SND")
-
+	logrus.WithFields(logrus.Fields{
+		"local":  localFilepath,
+		"remote": remoteDir,
+	}).Info("SND")
 	return nil
 } // }}}
 
-// TODO: log to extract and send
 func HandleParse( // {{{
 	inputPath string,
 	columns []int,
@@ -638,27 +648,14 @@ func HandleParse( // {{{
 	if err != nil {
 		return err
 	}
-	logrus.WithFields(logrus.Fields{
-		"file": outputFile,
-	}).Info("PRS")
 	if !parseServerOptions.Enabled {
 		return nil
 	}
-	logrus.WithFields(logrus.Fields{
-		"file":    inputPath,
-		"message": "start",
-	}).Debug("SND")
-
 	remoteDir, remoteFileName := fsop.CustomRemoteFileNameAndDir(
 		inputPath,
 		parseServerOptions.Directory,
 		parseParseOptions.OutputType,
 	)
-	logrus.WithFields(logrus.Fields{
-		"outputFile":     outputFile,
-		"remoteDir":      remoteDir,
-		"remoteFileName": remoteFileName,
-	}).Debug("SND")
 	if Send(
 		parseServerOptions.HostKey,
 		parseServerOptions.UserName,
@@ -669,10 +666,6 @@ func HandleParse( // {{{
 	) != nil {
 		return err
 	}
-	logrus.WithFields(logrus.Fields{
-		"local":  outputFile,
-		"remote": remoteDir,
-	}).Info("SND")
 	return nil
 } // }}}
 
