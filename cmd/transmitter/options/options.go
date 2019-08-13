@@ -4,12 +4,12 @@ import (
 	"flag"
 )
 
-type TransferOptions struct {
+type Options struct {
 	InputPath string
 }
 
-func AttachTransferOptions(cmd *flag.FlagSet) *TransferOptions {
-	options := &TransferOptions{}
+func AttachOptions(cmd *flag.FlagSet) *Options {
+	options := &Options{}
 	cmd.StringVar(
 		&options.InputPath,
 		"sourcepath",

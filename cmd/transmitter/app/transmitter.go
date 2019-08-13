@@ -13,19 +13,19 @@ import (
 )
 
 type TransmitterCommand struct {
-	LogOptions      *commonOptions.LogOptions
-	ServerOptions   *commonOptions.ServerOptions
-	WatchOptions    *commonOptions.WatchOptions
-	TransferOptions *options.TransferOptions
-	Regexp          *regexp.Regexp
+	LogOptions    *commonOptions.LogOptions
+	ServerOptions *commonOptions.ServerOptions
+	WatchOptions  *commonOptions.WatchOptions
+	Options       *options.Options
+	Regexp        *regexp.Regexp
 }
 
 func NewTransmitterCommand() *TransmitterCommand {
 	return &TransmitterCommand{
-		LogOptions:      commonOptions.AttachLogOptions(flag.CommandLine),
-		WatchOptions:    commonOptions.AttachWatchOptions(flag.CommandLine),
-		ServerOptions:   commonOptions.AttachServerOptions(flag.CommandLine),
-		TransferOptions: options.AttachTransferOptions(flag.CommandLine),
+		LogOptions:    commonOptions.AttachLogOptions(flag.CommandLine),
+		WatchOptions:  commonOptions.AttachWatchOptions(flag.CommandLine),
+		ServerOptions: commonOptions.AttachServerOptions(flag.CommandLine),
+		Options:       options.AttachOptions(flag.CommandLine),
 	}
 }
 
@@ -38,15 +38,15 @@ func (c *TransmitterCommand) Validate() (err error) {
 		logrus.SetLevel(logrus.InfoLevel)
 	}
 	logrus.WithFields(logrus.Fields{
-		"logOptions":      commonOptions.Debug(c.LogOptions),
-		"watchOptions":    commonOptions.Debug(c.WatchOptions),
-		"serverOptions":   commonOptions.Debug(c.ServerOptions),
-		"transferOptions": commonOptions.Debug(c.TransferOptions),
+		"logOptions":    commonOptions.Debug(c.LogOptions),
+		"watchOptions":  commonOptions.Debug(c.WatchOptions),
+		"serverOptions": commonOptions.Debug(c.ServerOptions),
+		"options":       commonOptions.Debug(c.Options),
 	}).Debug("LOG")
 	c.Regexp, err = regexp.Compile(c.WatchOptions.FileNamePattern)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
-			"path":    c.TransferOptions.InputPath,
+			"path":    c.Options.InputPath,
 			"message": err.Error(),
 		}).Error("TRS")
 	}
@@ -70,9 +70,9 @@ func (c *TransmitterCommand) Execute() error {
 			}
 			return nil
 		}
-		if err := filepath.Walk(c.TransferOptions.InputPath, walkfunc); err != nil {
+		if err := filepath.Walk(c.Options.InputPath, walkfunc); err != nil {
 			logrus.WithFields(logrus.Fields{
-				"path":    c.TransferOptions.InputPath,
+				"path":    c.Options.InputPath,
 				"message": err.Error(),
 			}).Error("TRS")
 		}
@@ -80,7 +80,7 @@ func (c *TransmitterCommand) Execute() error {
 	}
 
 	watchrecur.Watch(
-		c.TransferOptions.InputPath,
+		c.Options.InputPath,
 		c.WatchOptions.Interval,
 		func(inputPath string) error {
 			if !c.Regexp.MatchString(inputPath) {
