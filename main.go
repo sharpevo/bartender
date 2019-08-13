@@ -475,7 +475,7 @@ func Watch(inputPath string, duration time.Duration) { // {{{
 			logrus.WithFields(logrus.Fields{
 				"path":    inputPath,
 				"message": err.Error(),
-			}).Error("ADD")
+			}).Error("SCN")
 		}
 		go func() {
 			done <- struct{}{}
@@ -487,7 +487,7 @@ func addToWatcher(inputPath string, f os.FileInfo, err error) error { // {{{
 	if f.Mode().IsDir() {
 		logrus.WithFields(logrus.Fields{
 			"file": inputPath,
-		}).Debug("ADD")
+		}).Debug("SCN")
 		return watcher.Add(inputPath)
 	}
 	return nil
