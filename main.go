@@ -20,16 +20,191 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 )
 
+type ParseOptions struct { // {{{
+	InputPath     string
+	SheetIndex    int
+	RowStartsAt   int
+	RowEndsAt     int
+	ColumnIndices string
+	OutputType    string
+	OutputPath    string
+}
+
+func AttachParseOptions(cmd *flag.FlagSet) *ParseOptions {
+	options := &ParseOptions{}
+	cmd.StringVar(
+		&options.InputPath,
+		"inputpath",
+		"test.xlsx",
+		"filename or directory to parse",
+	)
+	cmd.IntVar(
+		&options.SheetIndex,
+		"sheet",
+		0,
+		"sheet index",
+	)
+	cmd.IntVar(
+		&options.RowStartsAt,
+		"rowstart",
+		0,
+		"first row index of the range",
+	)
+	cmd.IntVar(
+		&options.RowEndsAt,
+		"rowend",
+		-1,
+		"last row index of the range, '-1' means all the rest rows",
+	)
+	cmd.StringVar(
+		&options.ColumnIndices,
+		"columns",
+		"0,3,5,7,11",
+		"colmuns to be extracted",
+	)
+	cmd.StringVar(
+		&options.OutputType,
+		"outputtype",
+		"xlsx",
+		"type of output file, csv, txt or xlsx",
+	)
+	cmd.StringVar(
+		&options.OutputPath,
+		"outputpath",
+		"",
+		"path of output directory",
+	)
+	return options
+} // }}}
+
+type TransferOptions struct { // {{{
+	InputPath string
+}
+
+func AttachTransferOptions(cmd *flag.FlagSet) *TransferOptions {
+	options := &TransferOptions{}
+	cmd.StringVar(
+		&options.InputPath,
+		"sourcepath",
+		"",
+		"local directory to transfer",
+	)
+	return options
+} // }}}
+
+type ServerOptions struct { // {{{
+	Enabled   bool
+	HostKey   string
+	UserName  string
+	Password  string
+	Directory string
+}
+
+func AttachServerOptions(cmd *flag.FlagSet) *ServerOptions {
+	options := &ServerOptions{}
+	cmd.BoolVar(
+		&options.Enabled,
+		"transfer",
+		false,
+		"enable output file transfer",
+	)
+	cmd.StringVar(
+		&options.HostKey,
+		"hostkey",
+		"101.201.180.67 ecdsa-sha2-nistp256 xxx",
+		"lines in ./ssh/known_host",
+	)
+	cmd.StringVar(
+		&options.UserName,
+		"username",
+		"root",
+		"user name to use when connecting to remote server",
+	)
+	cmd.StringVar(
+		&options.Password,
+		"password",
+		"",
+		"password to use when connecting to remote server",
+	)
+	cmd.StringVar(
+		&options.Directory,
+		"remotepath",
+		"",
+		"path of output directory",
+	)
+	return options
+} // }}}
+
+type WatchOptions struct { // {{{
+	Enabled         bool
+	Interval        time.Duration
+	FileNamePattern string
+}
+
+func AttachWatchOptions(cmd *flag.FlagSet) *WatchOptions {
+	options := &WatchOptions{}
+	cmd.BoolVar(
+		&options.Enabled,
+		"watch",
+		false,
+		"enable to watch the directory",
+	)
+	cmd.DurationVar(
+		&options.Interval,
+		"interval",
+		10*time.Second,
+		"interval of walking through the folders, not for files",
+	)
+	cmd.StringVar(
+		&options.FileNamePattern,
+		"namepattern",
+		"",
+		"filename pattern",
+	)
+	return options
+} // }}}
+
+type LogOptions struct { // {{{
+	Level string
+}
+
+func AttachLogOptions(cmd *flag.FlagSet) *LogOptions {
+	options := &LogOptions{}
+	cmd.StringVar(
+		&options.Level,
+		"loglevel",
+		"info",
+		"log level",
+	)
+	return options
+} // }}}
+
 var watcher *fsnotify.Watcher
 
+func init() {
+	logFile, err := os.OpenFile("log.txt", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		fmt.Println("failed to open log file 'log.txt'")
+		return
+	}
+	mw := io.MultiWriter(os.Stdout, logFile)
+	logrus.SetOutput(mw)
+	logrus.SetFormatter(&logrus.TextFormatter{
+		DisableColors:          true,
+		DisableLevelTruncation: false,
+	})
+
+}
 func usage() {
-	fmt.Println("Usage: parse_excel <command> [<args>]")
+	fmt.Printf("Usage: %s <command> [<args>]", os.Args[0])
 	fmt.Println()
 	fmt.Println("Availabve commands are: ")
 	fmt.Println("    parse: Parse the excel directory.")
+	fmt.Println("    transfer: Transfer files when pattern matched.")
 }
 
 func main() {
@@ -38,87 +213,23 @@ func main() {
 		return
 	}
 
-	parseCommand := flag.NewFlagSet("parse", flag.ExitOnError) // {{{
-	inputPath := parseCommand.String(
-		"inputpath",
-		"test.xlsx",
-		"filename or directory to parse",
-	)
-	sheetIndex := parseCommand.Int(
-		"sheet",
-		0,
-		"sheet index",
-	)
-	rowStartsAt := parseCommand.Int(
-		"rowstart",
-		0,
-		"first row index of the range",
-	)
-	rowEndsAt := parseCommand.Int(
-		"rowend",
-		-1,
-		"last row index of the range, '-1' means all the rest rows",
-	)
-	columnIndices := parseCommand.String(
-		"columns",
-		"0,3,5,7,11",
-		"colmuns to be extracted",
-	)
-	outputType := parseCommand.String(
-		"outputtype",
-		"xlsx",
-		"type of output file, csv, txt or xlsx",
-	)
-	outputPath := parseCommand.String(
-		"outputpath",
-		"",
-		"path of output directory",
-	)
-	remoteOutputPath := parseCommand.String(
-		"remotepath",
-		"",
-		"path of output directory",
-	)
-	isTransfer := parseCommand.Bool(
-		"transfer",
-		false,
-		"enable output file transfer",
-	)
-	hostKey := parseCommand.String(
-		"hostkey",
-		"101.201.180.67 ecdsa-sha2-nistp256 xxx",
-		"lines in ./ssh/known_host",
-	)
-	userName := parseCommand.String(
-		"username",
-		"root",
-		"user name to use when connecting to remote server",
-	)
-	password := parseCommand.String(
-		"password",
-		"",
-		"password to use when connecting to remote server",
-	)
-	isWatch := parseCommand.Bool(
-		"watch",
-		false,
-		"enable to watch the directory",
-	)
-	interval := parseCommand.Int(
-		"interval",
-		60,
-		"interval of walking through the folders, not for files",
-	)
-	logLevel := parseCommand.String(
-		"loglevel",
-		"info",
-		"log level",
-	)
-	// }}}
+	parseCommand := flag.NewFlagSet("parse", flag.ExitOnError)
+	parseParseOptions := AttachParseOptions(parseCommand)
+	parseServerOptions := AttachServerOptions(parseCommand)
+	parseWatchOptions := AttachWatchOptions(parseCommand)
+	parseLogOptions := AttachLogOptions(parseCommand)
+
+	transferCommand := flag.NewFlagSet("transfer", flag.ExitOnError)
+	transferTransferOptions := AttachTransferOptions(transferCommand)
+	transferServerOptions := AttachServerOptions(transferCommand)
+	transferWatchOptions := AttachWatchOptions(transferCommand)
+	transferLogOptions := AttachLogOptions(transferCommand)
 
 	switch os.Args[1] {
 	case "parse":
 		parseCommand.Parse(os.Args[2:])
+	case "transfer":
+		transferCommand.Parse(os.Args[2:])
 	case "-h":
 		usage()
 		return
@@ -128,66 +239,53 @@ func main() {
 		return
 	}
 
-	if parseCommand.Parsed() {
-		columns, err := fsop.ConvertColumnIndices(*columnIndices)
+	if parseCommand.Parsed() { // {{{
+		columns, err := fsop.ConvertColumnIndices(parseParseOptions.ColumnIndices)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		isFolder, err := fsop.IsDir(*inputPath)
+		isFolder, err := fsop.IsDir(parseParseOptions.InputPath)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
 
-		logFile := filepath.Join(*outputPath, "log.txt")
-		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err != nil {
-			fmt.Println("failed to open log file:", logFile)
-			return
-		}
-		mw := io.MultiWriter(os.Stdout, file)
-		logrus.SetOutput(mw)
-		logrus.SetFormatter(&logrus.TextFormatter{
-			DisableColors:          true,
-			DisableLevelTruncation: false,
-		})
-		switch *logLevel {
+		switch parseLogOptions.Level {
 		case "debug":
 			logrus.SetLevel(logrus.DebugLevel)
 		default:
 			logrus.SetLevel(logrus.InfoLevel)
 		}
 		logrus.WithFields(logrus.Fields{
-			"logfile":  logFile,
-			"loglevel": *logLevel,
+			"loglevel": parseLogOptions.Level,
 		}).Info("LOG")
 		logrus.WithFields(logrus.Fields{
-			"inputpath":  *inputPath,
-			"sheet":      *sheetIndex,
-			"rowstart":   *rowStartsAt,
-			"rowend":     *rowEndsAt,
-			"columns":    *columnIndices,
-			"outputpath": *outputPath,
-			"outputtype": *outputType,
-			"hostkey":    *hostKey,
-			"username":   *userName,
-			"password":   *password,
-			"remotepath": *remoteOutputPath,
-			"transfer":   *isTransfer,
-			"watch":      *isWatch,
-			"interval":   *interval,
+			"inputpath":  parseParseOptions.InputPath,
+			"sheet":      parseParseOptions.SheetIndex,
+			"rowstart":   parseParseOptions.RowStartsAt,
+			"rowend":     parseParseOptions.RowEndsAt,
+			"columns":    parseParseOptions.ColumnIndices,
+			"outputpath": parseParseOptions.OutputPath,
+			"outputtype": parseParseOptions.OutputPath,
+			"hostkey":    parseServerOptions.HostKey,
+			"username":   parseServerOptions.UserName,
+			"password":   parseServerOptions.Password,
+			"remotepath": parseServerOptions.Directory,
+			"transfer":   parseServerOptions.Enabled,
+			"watch":      parseWatchOptions.Enabled,
+			"interval":   parseWatchOptions.Interval,
 		}).Debug("LOG")
 
 		if !isFolder {
 			if outputFile, err := Extract(
-				*inputPath,
-				*sheetIndex,
-				*rowStartsAt,
-				*rowEndsAt,
+				parseParseOptions.InputPath,
+				parseParseOptions.SheetIndex,
+				parseParseOptions.RowStartsAt,
+				parseParseOptions.RowEndsAt,
 				columns,
-				*outputPath,
-				*outputType,
+				parseParseOptions.OutputPath,
+				parseParseOptions.OutputType,
 			); err != nil {
 				log.Println(err)
 				return
@@ -198,10 +296,9 @@ func main() {
 			return
 		}
 		// is folder
-		if !*isWatch {
-			// TODO: parse all the files and transfer
+		if !parseWatchOptions.Enabled { // {{{
 			if err := filepath.Walk(
-				*inputPath,
+				parseParseOptions.InputPath,
 				func(
 					inputPath string,
 					f os.FileInfo,
@@ -213,59 +310,26 @@ func main() {
 					logrus.WithFields(logrus.Fields{
 						"file": inputPath,
 					}).Info("NEW")
-					if outputFile, err := Extract(
+					if HandleParse(
 						inputPath,
-						*sheetIndex,
-						*rowStartsAt,
-						*rowEndsAt,
 						columns,
-						*outputPath,
-						*outputType,
-					); err != nil {
+						parseParseOptions,
+						parseServerOptions,
+					) != nil {
 						logrus.WithFields(logrus.Fields{
 							"file":    inputPath,
 							"message": err.Error(),
 						}).Error("PRS")
-					} else {
-						logrus.WithFields(logrus.Fields{
-							"file": outputFile,
-						}).Info("PRS")
-						if !*isTransfer {
-							return nil
-						}
-						logrus.WithFields(logrus.Fields{
-							"file":    inputPath,
-							"message": "start",
-						}).Debug("SND")
-						if err := Send(
-							*hostKey,
-							*userName,
-							*password,
-							inputPath,
-							outputFile,
-							*outputType,
-							*remoteOutputPath,
-						); err != nil {
-							logrus.WithFields(logrus.Fields{
-								"file":    inputPath,
-								"message": err.Error(),
-							}).Error("SND")
-						} else {
-							logrus.WithFields(logrus.Fields{
-								"file":    inputPath,
-								"message": "sent",
-							}).Info("SND")
-						}
 					}
 					return nil
 				}); err != nil {
 				logrus.WithFields(logrus.Fields{
-					"path":    inputPath,
+					"path":    parseParseOptions.InputPath,
 					"message": err.Error(),
-				}).Error("ADD")
+				}).Error("PRS")
 			}
 			return
-		}
+		} // }}}
 		watcher, _ = fsnotify.NewWatcher()
 		defer watcher.Close()
 		done := make(chan bool)
@@ -280,49 +344,16 @@ func main() {
 						logrus.WithFields(logrus.Fields{
 							"file": event.Name,
 						}).Info("NEW")
-						if outputFile, err := Extract(
+						if HandleParse(
 							event.Name,
-							*sheetIndex,
-							*rowStartsAt,
-							*rowEndsAt,
 							columns,
-							*outputPath,
-							*outputType,
-						); err != nil {
+							parseParseOptions,
+							parseServerOptions,
+						) != nil {
 							logrus.WithFields(logrus.Fields{
 								"file":    event.Name,
 								"message": err.Error(),
 							}).Error("PRS")
-						} else {
-							logrus.WithFields(logrus.Fields{
-								"file": outputFile,
-							}).Info("PRS")
-							if !*isTransfer {
-								continue
-							}
-							logrus.WithFields(logrus.Fields{
-								"file":    event.Name,
-								"message": "start",
-							}).Debug("SND")
-							if err := Send(
-								*hostKey,
-								*userName,
-								*password,
-								event.Name,
-								outputFile,
-								*outputType,
-								*remoteOutputPath,
-							); err != nil {
-								logrus.WithFields(logrus.Fields{
-									"file":    event.Name,
-									"message": err.Error(),
-								}).Error("SND")
-							} else {
-								logrus.WithFields(logrus.Fields{
-									"file":    event.Name,
-									"message": "sent",
-								}).Info("SND")
-							}
 						}
 					}
 				case err, ok := <-watcher.Errors:
@@ -335,17 +366,108 @@ func main() {
 				}
 			}
 		}()
-		go Watch(*inputPath, *interval)
+		go Watch(parseParseOptions.InputPath, parseWatchOptions.Interval)
 		<-done
-	}
+	} // }}}
+	if transferCommand.Parsed() { // {{{
+		switch transferLogOptions.Level {
+		case "debug":
+			logrus.SetLevel(logrus.DebugLevel)
+		default:
+			logrus.SetLevel(logrus.InfoLevel)
+		}
+		logrus.WithFields(logrus.Fields{
+			"loglevel": parseLogOptions.Level,
+		}).Info("LOG")
+		r, err := regexp.Compile(transferWatchOptions.FileNamePattern)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"path":    transferTransferOptions.InputPath,
+				"message": err.Error(),
+			}).Error("TRS")
+		}
+		if !transferWatchOptions.Enabled {
+			if err := filepath.Walk(
+				transferTransferOptions.InputPath,
+				func(
+					inputPath string,
+					f os.FileInfo,
+					err error,
+				) error {
+					if !f.Mode().IsRegular() ||
+						!r.MatchString(inputPath) {
+						return nil
+					}
+					logrus.WithFields(logrus.Fields{
+						"file": inputPath,
+					}).Info("TRS")
+					if HandleTransfer(inputPath, transferServerOptions) != nil {
+						logrus.WithFields(logrus.Fields{
+							"file":    inputPath,
+							"message": err.Error(),
+						}).Error("TRS")
+					} else {
+						logrus.WithFields(logrus.Fields{
+							"file":    inputPath,
+							"message": "sent",
+						}).Info("TRS")
+					}
+					return nil
+				}); err != nil {
+				logrus.WithFields(logrus.Fields{
+					"path":    transferTransferOptions.InputPath,
+					"message": err.Error(),
+				}).Error("TRS")
+			}
+			return
+		}
+		watcher, _ = fsnotify.NewWatcher()
+		defer watcher.Close()
+		done := make(chan bool)
+		go func() {
+			for {
+				select {
+				case event, ok := <-watcher.Events:
+					if !ok {
+						return
+					}
+					if event.Op&fsnotify.CloseWrite == fsnotify.CloseWrite {
+						if !r.MatchString(event.Name) {
+							continue
+						}
+						if HandleTransfer(event.Name, transferServerOptions) != nil {
+							logrus.WithFields(logrus.Fields{
+								"file":    event.Name,
+								"message": err.Error(),
+							}).Error("TRS")
+						} else {
+							logrus.WithFields(logrus.Fields{
+								"file":    event.Name,
+								"message": "sent",
+							}).Info("TRS")
+						}
+					}
+				case err, ok := <-watcher.Errors:
+					if !ok {
+						return
+					}
+					logrus.WithFields(logrus.Fields{
+						"message": err.Error(),
+					}).Error("LOG")
+				}
+			}
+		}()
+		go Watch(transferTransferOptions.InputPath, transferWatchOptions.Interval)
+		<-done
+	} // }}}
 }
 
-func Watch(inputPath string, duration int) { // {{{
+func Watch(inputPath string, duration time.Duration) { // {{{
 	done := make(chan struct{})
 	go func() {
 		done <- struct{}{}
 	}()
-	ticker := time.NewTicker(time.Duration(duration) * time.Second)
+	ticker := time.NewTicker(duration)
 	defer ticker.Stop()
 	for ; ; <-ticker.C {
 		<-done
@@ -353,7 +475,7 @@ func Watch(inputPath string, duration int) { // {{{
 			logrus.WithFields(logrus.Fields{
 				"path":    inputPath,
 				"message": err.Error(),
-			}).Error("ADD")
+			}).Error("SCN")
 		}
 		go func() {
 			done <- struct{}{}
@@ -365,7 +487,7 @@ func addToWatcher(inputPath string, f os.FileInfo, err error) error { // {{{
 	if f.Mode().IsDir() {
 		logrus.WithFields(logrus.Fields{
 			"file": inputPath,
-		}).Debug("ADD")
+		}).Debug("SCN")
 		return watcher.Add(inputPath)
 	}
 	return nil
@@ -418,6 +540,9 @@ func Extract( // {{{
 			outputType,
 		)
 	}
+	logrus.WithFields(logrus.Fields{
+		"file": outputFile,
+	}).Info("PRS")
 	return outputFile, nil
 } // }}}
 
@@ -425,19 +550,23 @@ func Send( // {{{
 	hostKey string,
 	username string,
 	password string,
-	sourceFile string,
-	outputFile string,
-	outputType string,
-	remoteOutputPath string,
+	localFilepath string,
+	remoteFilename string,
+	remoteDir string,
 ) error {
+	logrus.WithFields(logrus.Fields{
+		"local":     localFilepath,
+		"remoteDir": remoteDir,
+		"message":   "sending...",
+	}).Debug("SND")
 	if username == "" {
 		return fmt.Errorf("missing username")
 	}
 	if password == "" {
 		return fmt.Errorf("missing password")
 	}
-	if sourceFile == "" {
-		return fmt.Errorf("missing sourcefile")
+	if localFilepath == "" {
+		return fmt.Errorf("missing localFilepath")
 	}
 
 	_, hosts, pubKey, _, _, err := ssh.ParseKnownHosts([]byte(hostKey))
@@ -469,14 +598,7 @@ func Send( // {{{
 	}
 	defer client.Close()
 
-	remoteDir, remoteFile := fsop.MakeRemoteFileWithinNameFolder(
-		sourceFile, remoteOutputPath, outputType)
-	logrus.WithFields(logrus.Fields{
-		"outputFile": outputFile,
-		"remoteDir":  remoteDir,
-		"remoteFile": remoteFile,
-	}).Debug("SND")
-
+	remoteFilepath := filepath.Join(remoteDir, remoteFilename)
 	if remoteDir != "" && remoteDir != "./" && remoteDir != "~/" {
 		if client.MkdirAll(remoteDir) != nil {
 			return fmt.Errorf(
@@ -486,19 +608,19 @@ func Send( // {{{
 			)
 		}
 	}
-	dstFile, err := client.Create(remoteFile)
+	dstFile, err := client.Create(remoteFilepath)
 	if err != nil {
 		return fmt.Errorf("failed to create target file: %v", err)
 	}
-	if client.Chmod(remoteFile, os.FileMode(0755)) != nil {
+	if client.Chmod(remoteFilepath, os.FileMode(0755)) != nil {
 		logrus.WithFields(logrus.Fields{
-			"file":    remoteFile,
+			"file":    remoteFilepath,
 			"message": "failed to chmod",
 		}).Error("SND")
 	}
 	defer dstFile.Close()
 
-	srcFile, err := os.Open(outputFile)
+	srcFile, err := os.Open(localFilepath)
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %v", err)
 	}
@@ -510,6 +632,66 @@ func Send( // {{{
 	logrus.WithFields(logrus.Fields{
 		"bytesSent": bytes,
 	}).Debug("SND")
-
+	logrus.WithFields(logrus.Fields{
+		"local":  localFilepath,
+		"remote": remoteDir,
+	}).Info("SND")
 	return nil
 } // }}}
+
+func HandleParse( // {{{
+	inputPath string,
+	columns []int,
+	parseParseOptions *ParseOptions,
+	parseServerOptions *ServerOptions,
+) error {
+	outputFile, err := Extract(
+		inputPath,
+		parseParseOptions.SheetIndex,
+		parseParseOptions.RowStartsAt,
+		parseParseOptions.RowEndsAt,
+		columns,
+		parseParseOptions.OutputPath,
+		parseParseOptions.OutputType,
+	)
+	if err != nil {
+		return err
+	}
+	if !parseServerOptions.Enabled {
+		return nil
+	}
+	remoteDir, remoteFileName := fsop.CustomRemoteFileNameAndDir(
+		inputPath,
+		parseServerOptions.Directory,
+		parseParseOptions.OutputType,
+	)
+	if Send(
+		parseServerOptions.HostKey,
+		parseServerOptions.UserName,
+		parseServerOptions.Password,
+		outputFile,
+		remoteFileName,
+		remoteDir,
+	) != nil {
+		return err
+	}
+	return nil
+} // }}}
+
+func HandleTransfer(
+	inputPath string,
+	transferServerOptions *ServerOptions,
+) error {
+	if !transferServerOptions.Enabled {
+		return nil
+	}
+	_, fileName := filepath.Split(inputPath)
+	return Send(
+		transferServerOptions.HostKey,
+		transferServerOptions.UserName,
+		transferServerOptions.Password,
+		inputPath,
+		fileName,
+		transferServerOptions.Directory,
+	)
+}
