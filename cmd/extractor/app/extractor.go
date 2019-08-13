@@ -159,7 +159,7 @@ func (c *ExtractCommand) Extract(inputPath string) (outputFile string, err error
 		c.ParseOptions.OutputType,
 	)
 	switch c.ParseOptions.OutputType {
-	case "csv", "txt":
+	case excel.OUTPUT_TYPE_CSV, excel.OUTPUT_TYPE_TXT:
 		if excel.MakeFileCSV(
 			outputFile,
 			data,
@@ -167,7 +167,7 @@ func (c *ExtractCommand) Extract(inputPath string) (outputFile string, err error
 		) != nil {
 			return outputFile, err
 		}
-	case "xlsx":
+	case excel.OUTPUT_TYPE_XLSX:
 		if excel.MakeFileXLSX(
 			outputFile,
 			data,
