@@ -62,7 +62,7 @@ func (c *TransmitterCommand) Execute() error {
 			logrus.WithFields(logrus.Fields{
 				"file": inputPath,
 			}).Info("TRS")
-			if c.HandleTransfer(inputPath) != nil {
+			if c.process(inputPath) != nil {
 				logrus.WithFields(logrus.Fields{
 					"file":    inputPath,
 					"message": err.Error(),
@@ -86,7 +86,7 @@ func (c *TransmitterCommand) Execute() error {
 			if !c.Regexp.MatchString(inputPath) {
 				return nil
 			}
-			if err := c.HandleTransfer(inputPath); err != nil {
+			if err := c.process(inputPath); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"file":    inputPath,
 					"message": err.Error(),
@@ -98,7 +98,7 @@ func (c *TransmitterCommand) Execute() error {
 	return nil
 }
 
-func (c *TransmitterCommand) HandleTransfer(inputPath string) error {
+func (c *TransmitterCommand) process(inputPath string) error {
 	if !c.ServerOptions.Enabled {
 		return nil
 	}

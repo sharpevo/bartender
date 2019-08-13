@@ -62,7 +62,7 @@ func (c *ExtractCommand) Validate() (err error) {
 
 func (c *ExtractCommand) Execute() error {
 	if !c.Recursive {
-		outputFile, err := c.Extract(c.Options.InputPath)
+		outputFile, err := c.extract(c.Options.InputPath)
 		if err != nil {
 			return err
 		}
@@ -78,7 +78,7 @@ func (c *ExtractCommand) Execute() error {
 			logrus.WithFields(logrus.Fields{
 				"file": inputPath,
 			}).Info("NEW")
-			if err := c.HandleParse(inputPath); err != nil {
+			if err := c.process(inputPath); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"file":    inputPath,
 					"message": err.Error(),
@@ -102,7 +102,7 @@ func (c *ExtractCommand) Execute() error {
 			logrus.WithFields(logrus.Fields{
 				"file": inputPath,
 			}).Info("NEW")
-			if err := c.HandleParse(inputPath); err != nil {
+			if err := c.process(inputPath); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"file":    inputPath,
 					"message": err.Error(),
@@ -114,8 +114,8 @@ func (c *ExtractCommand) Execute() error {
 	return nil
 }
 
-func (c *ExtractCommand) HandleParse(inputPath string) error {
-	outputFile, err := c.Extract(inputPath)
+func (c *ExtractCommand) process(inputPath string) error {
+	outputFile, err := c.extract(inputPath)
 	if err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func (c *ExtractCommand) HandleParse(inputPath string) error {
 	return nil
 }
 
-func (c *ExtractCommand) Extract(inputPath string) (outputFile string, err error) {
+func (c *ExtractCommand) extract(inputPath string) (outputFile string, err error) {
 	data, err := excel.ExtractColumns(
 		inputPath,
 		c.Options.SheetIndex,
