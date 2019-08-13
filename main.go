@@ -20,6 +20,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 )
 
@@ -80,6 +81,21 @@ func AttachParseOptions(cmd *flag.FlagSet) *ParseOptions {
 	return options
 } // }}}
 
+type TransferOptions struct { // {{{
+	InputPath string
+}
+
+func AttachTransferOptions(cmd *flag.FlagSet) *TransferOptions {
+	options := &TransferOptions{}
+	cmd.StringVar(
+		&options.InputPath,
+		"sourcepath",
+		"",
+		"local directory to transfer",
+	)
+	return options
+} // }}}
+
 type ServerOptions struct { // {{{
 	Enabled   bool
 	HostKey   string
@@ -124,8 +140,9 @@ func AttachServerOptions(cmd *flag.FlagSet) *ServerOptions {
 } // }}}
 
 type WatchOptions struct { // {{{
-	Enabled  bool
-	Interval time.Duration
+	Enabled         bool
+	Interval        time.Duration
+	FileNamePattern string
 }
 
 func AttachWatchOptions(cmd *flag.FlagSet) *WatchOptions {
@@ -141,6 +158,12 @@ func AttachWatchOptions(cmd *flag.FlagSet) *WatchOptions {
 		"interval",
 		10*time.Second,
 		"interval of walking through the folders, not for files",
+	)
+	cmd.StringVar(
+		&options.FileNamePattern,
+		"namepattern",
+		"",
+		"filename pattern",
 	)
 	return options
 } // }}}
@@ -181,6 +204,7 @@ func usage() {
 	fmt.Println()
 	fmt.Println("Availabve commands are: ")
 	fmt.Println("    parse: Parse the excel directory.")
+	fmt.Println("    transfer: transfer files.")
 }
 
 func main() {
@@ -195,9 +219,17 @@ func main() {
 	parseWatchOptions := AttachWatchOptions(parseCommand)
 	parseLogOptions := AttachLogOptions(parseCommand)
 
+	transferCommand := flag.NewFlagSet("transfer", flag.ExitOnError)
+	transferTransferOptions := AttachTransferOptions(transferCommand)
+	transferServerOptions := AttachServerOptions(transferCommand)
+	transferWatchOptions := AttachWatchOptions(transferCommand)
+	//transferLogOptions := AttachLogOptions(transferCommand)
+
 	switch os.Args[1] {
 	case "parse":
 		parseCommand.Parse(os.Args[2:])
+	case "transfer":
+		transferCommand.Parse(os.Args[2:])
 	case "-h":
 		usage()
 		return
@@ -403,7 +435,88 @@ func main() {
 		go Watch(parseParseOptions.InputPath, parseWatchOptions.Interval)
 		<-done
 	} // }}}
-	}
+	if transferCommand.Parsed() { // {{{
+		r, err := regexp.Compile(transferWatchOptions.FileNamePattern)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"path":    transferTransferOptions.InputPath,
+				"message": err.Error(),
+			}).Error("TRS")
+		}
+		if !transferWatchOptions.Enabled {
+			if err := filepath.Walk(
+				transferTransferOptions.InputPath,
+				func(
+					inputPath string,
+					f os.FileInfo,
+					err error,
+				) error {
+					if !f.Mode().IsRegular() ||
+						!r.MatchString(inputPath) {
+						return nil
+					}
+					logrus.WithFields(logrus.Fields{
+						"file": inputPath,
+					}).Info("TRS")
+					if HandleTransfer(inputPath, transferServerOptions) != nil {
+						logrus.WithFields(logrus.Fields{
+							"file":    inputPath,
+							"message": err.Error(),
+						}).Error("TRS")
+					} else {
+						logrus.WithFields(logrus.Fields{
+							"file":    inputPath,
+							"message": "sent",
+						}).Info("TRS")
+					}
+					return nil
+				}); err != nil {
+				logrus.WithFields(logrus.Fields{
+					"path":    transferTransferOptions.InputPath,
+					"message": err.Error(),
+				}).Error("TRS")
+			}
+			return
+		}
+		watcher, _ = fsnotify.NewWatcher()
+		defer watcher.Close()
+		done := make(chan bool)
+		go func() {
+			for {
+				select {
+				case event, ok := <-watcher.Events:
+					if !ok {
+						return
+					}
+					if event.Op&fsnotify.CloseWrite == fsnotify.CloseWrite {
+						if !r.MatchString(event.Name) {
+							continue
+						}
+						if HandleTransfer(event.Name, transferServerOptions) != nil {
+							logrus.WithFields(logrus.Fields{
+								"file":    event.Name,
+								"message": err.Error(),
+							}).Error("TRS")
+						} else {
+							logrus.WithFields(logrus.Fields{
+								"file":    event.Name,
+								"message": "sent",
+							}).Info("TRS")
+						}
+					}
+				case err, ok := <-watcher.Errors:
+					if !ok {
+						return
+					}
+					logrus.WithFields(logrus.Fields{
+						"message": err.Error(),
+					}).Error("LOG")
+				}
+			}
+		}()
+		go Watch(transferTransferOptions.InputPath, transferWatchOptions.Interval)
+		<-done
+	} // }}}
 }
 
 func Watch(inputPath string, duration time.Duration) { // {{{
@@ -579,3 +692,106 @@ func Send( // {{{
 
 	return nil
 } // }}}
+
+func Transfer( // {{{
+	hostKey string,
+	username string,
+	password string,
+	localFilepath string,
+	remoteFilename string,
+	remoteDir string,
+) error {
+	if username == "" {
+		return fmt.Errorf("missing username")
+	}
+	if password == "" {
+		return fmt.Errorf("missing password")
+	}
+	if localFilepath == "" {
+		return fmt.Errorf("missing localFilepath")
+	}
+
+	_, hosts, pubKey, _, _, err := ssh.ParseKnownHosts([]byte(hostKey))
+	if err != nil {
+		return fmt.Errorf("invalid host key: %v", err)
+	}
+	if len(hosts) < 1 {
+		return fmt.Errorf("invalid host: %v", hosts)
+	}
+	config := &ssh.ClientConfig{
+		User: username,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(password),
+		},
+		HostKeyCallback: ssh.FixedHostKey(pubKey),
+	}
+	conn, err := ssh.Dial(
+		"tcp",
+		fmt.Sprintf("%s:22", hosts[0]),
+		config,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to dial: %v", err)
+	}
+
+	client, err := sftp.NewClient(conn)
+	if err != nil {
+		return fmt.Errorf("failed to create client: %v", err)
+	}
+	defer client.Close()
+
+	remoteFilepath := filepath.Join(remoteDir, remoteFilename)
+	if remoteDir != "" && remoteDir != "./" && remoteDir != "~/" {
+		if client.MkdirAll(remoteDir) != nil {
+			return fmt.Errorf(
+				"failed to create remote directory '%s': %v",
+				remoteDir,
+				err,
+			)
+		}
+	}
+	dstFile, err := client.Create(remoteFilepath)
+	if err != nil {
+		return fmt.Errorf("failed to create target file: %v", err)
+	}
+	if client.Chmod(remoteFilepath, os.FileMode(0755)) != nil {
+		logrus.WithFields(logrus.Fields{
+			"file":    remoteFilepath,
+			"message": "failed to chmod",
+		}).Error("SND")
+	}
+	defer dstFile.Close()
+
+	srcFile, err := os.Open(localFilepath)
+	if err != nil {
+		return fmt.Errorf("failed to open source file: %v", err)
+	}
+
+	bytes, err := io.Copy(dstFile, srcFile)
+	if err != nil {
+		return fmt.Errorf("failed to send file: %v", err)
+	}
+	logrus.WithFields(logrus.Fields{
+		"bytesSent": bytes,
+	}).Debug("SND")
+
+	return nil
+} // }}}
+
+func HandleTransfer(
+	inputPath string,
+	transferServerOptions *ServerOptions,
+) error {
+	if !transferServerOptions.Enabled {
+		return nil
+	}
+	_, fileName := filepath.Split(inputPath)
+	return Transfer(
+		transferServerOptions.HostKey,
+		transferServerOptions.UserName,
+		transferServerOptions.Password,
+		inputPath,
+		fileName,
+		transferServerOptions.Directory,
+	)
+}
