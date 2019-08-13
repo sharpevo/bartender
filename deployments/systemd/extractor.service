@@ -6,11 +6,10 @@ After = network.target
 User = igenetech
 Group = igenetech
 WorkingDirectory = /opt/automation
-ExecStart = /bin/bash /opt/automation/extractor/run.sh
+ExecStart = /bin/bash /opt/automation/extractor/extractor.sh
 ExecStop = /bin/kill -15 $MAINPID
 PrivateTmp = true
 Restart=on-failure
 
 [Install]
 WantedBy = multi-user.target
-~
