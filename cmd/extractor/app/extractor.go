@@ -10,7 +10,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/sirupsen/logrus"
-	"log"
 	"os"
 	"path/filepath"
 )
@@ -62,11 +61,13 @@ func (c *ExtractCommand) Validate() (err error) {
 
 func (c *ExtractCommand) Execute() error {
 	if !c.Recursive {
-		outputFile, err := c.extract(c.Options.InputPath)
-		if err != nil {
+		if err := c.process(c.Options.InputPath); err != nil {
+			logrus.WithFields(logrus.Fields{
+				"file":    c.Options.InputPath,
+				"message": err.Error(),
+			}).Error("PRS")
 			return err
 		}
-		log.Println(outputFile)
 		return nil
 	}
 

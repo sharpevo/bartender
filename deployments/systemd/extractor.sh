@@ -1,7 +1,11 @@
 #!/bin/bash
+INPUT="/public/home/link/chart"
 cd /opt/automation/extractor
+inotifywait -m -r -q $INPUT -e close_write --format '%w%f'|while read newfile
+do
+    echo "==> $newfile"
 ./extractor \
-    -inputpath=/public/home/link/chart \
+    -inputpath=$newfile \
     -sheet=1 \
     -rowstart=2 \
     -rowend=-1 \
@@ -13,5 +17,6 @@ cd /opt/automation/extractor
     -hostkey="***REMOVED***" \
     -username=root \
     -password=***REMOVED*** \
-    -watch=true \
+    -watch=false \
     -interval=5s
+done
