@@ -1,0 +1,16 @@
+[Unit]
+Description = Automation Service - Transmitter
+After = network.target
+
+[Service]
+User = root
+Group = root
+WorkingDirectory = /opt/automation/transmitter
+ExecStart = /bin/bash /opt/automation/transmitter/transmitter.sh
+ExecStop = /bin/kill -15 $MAINPID
+PrivateTmp = true
+Restart=on-failure
+
+[Install]
+WantedBy = multi-user.target
+
