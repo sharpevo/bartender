@@ -3,9 +3,11 @@ package app
 import (
 	commonOptions "automation/cmd/options"
 	"automation/cmd/transmitter/options"
+	"automation/internal/fsop"
 	"automation/pkg/sshtrans"
 	"automation/pkg/watchrecur"
 	"flag"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
@@ -18,6 +20,7 @@ type TransmitterCommand struct {
 	WatchOptions  *commonOptions.WatchOptions
 	Options       *options.Options
 	Regexp        *regexp.Regexp
+	Recursive     bool
 }
 
 func NewTransmitterCommand() *TransmitterCommand {
@@ -31,6 +34,10 @@ func NewTransmitterCommand() *TransmitterCommand {
 
 func (c *TransmitterCommand) Validate() (err error) {
 	flag.Parse()
+	c.Recursive, err = fsop.IsDir(c.Options.InputPath)
+	if err != nil {
+		return err
+	}
 	switch c.LogOptions.Level {
 	case "debug":
 		logrus.SetLevel(logrus.DebugLevel)
@@ -54,14 +61,21 @@ func (c *TransmitterCommand) Validate() (err error) {
 }
 
 func (c *TransmitterCommand) Execute() error {
+	if !c.Recursive {
+		if err := c.process(c.Options.InputPath); err != nil {
+			logrus.WithFields(logrus.Fields{
+				"file":    c.Options.InputPath,
+				"message": err.Error(),
+			}).Error("TRS")
+			return err
+		}
+		return nil
+	}
 	if !c.WatchOptions.Enabled {
 		walkfunc := func(inputPath string, f os.FileInfo, err error) error {
-			if !f.Mode().IsRegular() || !c.Regexp.MatchString(inputPath) {
+			if !f.Mode().IsRegular() {
 				return nil
 			}
-			logrus.WithFields(logrus.Fields{
-				"file": inputPath,
-			}).Info("TRS")
 			if c.process(inputPath) != nil {
 				logrus.WithFields(logrus.Fields{
 					"file":    inputPath,
@@ -83,9 +97,6 @@ func (c *TransmitterCommand) Execute() error {
 		c.Options.InputPath,
 		c.WatchOptions.Interval,
 		func(inputPath string) error {
-			if !c.Regexp.MatchString(inputPath) {
-				return nil
-			}
 			if err := c.process(inputPath); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"file":    inputPath,
@@ -99,6 +110,20 @@ func (c *TransmitterCommand) Execute() error {
 }
 
 func (c *TransmitterCommand) process(inputPath string) error {
+	if !c.Regexp.MatchString(inputPath) {
+		logrus.WithFields(logrus.Fields{
+			"file": inputPath,
+			"message": fmt.Sprintf(
+				"file '%s' is not matched with pattern '%s'",
+				inputPath,
+				c.WatchOptions.FileNamePattern,
+			),
+		}).Warn("TRS")
+		return nil
+	}
+	logrus.WithFields(logrus.Fields{
+		"file": inputPath,
+	}).Info("TRS")
 	if !c.ServerOptions.Enabled {
 		return nil
 	}
