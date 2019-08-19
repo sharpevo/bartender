@@ -11,7 +11,7 @@ do
     -remotepath=/opt/automation/transmitter/test \
     -hostkey="***REMOVED***" \
     -username=igenetech \
-    -watch=true \
+    -watch=false \
     -password=***REMOVED***
 #-loglevel=debug \
 done
