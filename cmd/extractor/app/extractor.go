@@ -76,9 +76,6 @@ func (c *ExtractCommand) Execute() error {
 			if !f.Mode().IsRegular() {
 				return nil
 			}
-			logrus.WithFields(logrus.Fields{
-				"file": inputPath,
-			}).Info("NEW")
 			if err := c.process(inputPath); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"file":    inputPath,
@@ -100,9 +97,6 @@ func (c *ExtractCommand) Execute() error {
 		c.Options.InputPath,
 		c.WatchOptions.Interval,
 		func(inputPath string) error {
-			logrus.WithFields(logrus.Fields{
-				"file": inputPath,
-			}).Info("NEW")
 			if err := c.process(inputPath); err != nil {
 				logrus.WithFields(logrus.Fields{
 					"file":    inputPath,
@@ -123,6 +117,9 @@ func (c *ExtractCommand) process(inputPath string) error {
 	if !c.ServerOptions.Enabled {
 		return nil
 	}
+	logrus.WithFields(logrus.Fields{
+		"file": inputPath,
+	}).Info("NEW")
 	remoteDir, remoteFileName := fsop.CustomRemoteFileNameAndDir(
 		inputPath,
 		c.ServerOptions.Directory,
