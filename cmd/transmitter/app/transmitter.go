@@ -127,6 +127,15 @@ func (c *TransmitterCommand) process(inputPath string) error {
 	if !c.ServerOptions.Enabled {
 		return nil
 	}
+	remoteRel, err := fsop.GetRelativePath(c.WatchOptions.InputPath, inputPath)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"file":    inputPath,
+			"message": err.Error(),
+		}).Error("TRS")
+		return err
+	}
+	remoteDir := filepath.Join(c.ServerOptions.Directory, remoteRel)
 	_, fileName := filepath.Split(inputPath)
 	return sshtrans.TransViaPassword(
 		c.ServerOptions.HostKey,
@@ -134,6 +143,6 @@ func (c *TransmitterCommand) process(inputPath string) error {
 		c.ServerOptions.Password,
 		inputPath,
 		fileName,
-		c.ServerOptions.Directory,
+		remoteDir,
 	)
 }
