@@ -4,14 +4,16 @@ INPUT="/opt/automation/transmitter/input"
 cd /opt/automation/transmitter
 inotifywait -m -r -q $INPUT -e close_write --format '%w%f'|while read newfile
 do
+    echo "==> $newfile"
 ./transmitter \
-    -sourcepath=$newfile \
-    -namepattern=".\.abc$" \
+    -sourcepath="$newfile" \
+    -watchpath="$INPUT" \
     -transfer=true \
-    -remotepath=/opt/automation/transmitter/test \
+    -remotepath=/public/home/link/ecs \
     -hostkey="***REMOVED***" \
     -username=igenetech \
     -watch=false \
     -password=***REMOVED***
 #-loglevel=debug \
+#-namepattern=".\.abc$" \
 done
