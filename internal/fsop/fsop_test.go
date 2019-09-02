@@ -1,7 +1,7 @@
 package fsop_test
 
 import (
-	"automation/parser/internal/fsop"
+	"automation/internal/fsop"
 	"fmt"
 	"reflect"
 	"testing"
@@ -137,6 +137,52 @@ func TestMakeOutputFilePath(t *testing.T) {
 					"\nEXPECT: %v\n GET: %v\n\n",
 					c.expect,
 					outputfilepath,
+				)
+			}
+		})
+	}
+}
+
+func TestGetRelativePath(t *testing.T) {
+	cases := []struct {
+		base   string
+		input  string
+		expect string
+	}{
+		{
+			base:   "/a/b/",
+			input:  "/a/b/c/d/e.txt",
+			expect: "c/d/",
+		},
+		{
+			base:   "/a/b",
+			input:  "/a/b/c/d/e.txt",
+			expect: "c/d/",
+		},
+		{
+			base:   "~/a/b",
+			input:  "/home/yang/a/b/c/d/e.txt",
+			expect: "c/d/",
+		},
+		{
+			base:   "a/b",
+			input:  "a/b/c.txt",
+			expect: "",
+		},
+		{
+			base:   "a/b",
+			input:  "a/b/c/d/e.txt",
+			expect: "c/d/",
+		},
+	}
+	for index, c := range cases {
+		t.Run(fmt.Sprintf("%v", index), func(t *testing.T) {
+			actual, _ := fsop.GetRelativePath(c.base, c.input)
+			if actual != c.expect {
+				t.Errorf(
+					"\nEXPECT: %v\n GET: %v\n\n",
+					c.expect,
+					actual,
 				)
 			}
 		})

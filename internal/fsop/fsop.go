@@ -3,6 +3,7 @@ package fsop
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -61,3 +62,24 @@ func MakeOutputFilePath(outputPath string, fileName string, ext string) string {
 		),
 	)
 } // }}}
+
+func GetRelativePath(base string, inputPath string) (string, error) {
+	base = expandTilde(base)
+	rel, err := filepath.Rel(base, inputPath)
+	if err != nil {
+		return "", err
+	}
+	remoteRel, _ := filepath.Split(rel)
+	return remoteRel, nil
+}
+
+func expandTilde(path string) string {
+	u, _ := user.Current()
+	homeDir := u.HomeDir
+	if path == "~" {
+		path = homeDir
+	} else if strings.HasPrefix(path, "~/") {
+		path = filepath.Join(homeDir, path[2:])
+	}
+	return path
+}
