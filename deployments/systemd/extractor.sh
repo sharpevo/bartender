@@ -5,7 +5,7 @@ inotifywait -m -r -q $INPUT -e close_write --format '%w%f'|while read newfile
 do
     echo "==> $newfile"
 ./extractor \
-    -inputpath=$newfile \
+    -inputpath="$newfile" \
     -sheet=1 \
     -rowstart=2 \
     -rowend=-1 \
