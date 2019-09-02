@@ -54,6 +54,7 @@ func AttachServerOptions(cmd *flag.FlagSet) *ServerOptions {
 }
 
 type WatchOptions struct {
+	InputPath       string
 	Enabled         bool
 	Interval        time.Duration
 	FileNamePattern string
@@ -72,6 +73,12 @@ func AttachWatchOptions(cmd *flag.FlagSet) *WatchOptions {
 		"interval",
 		10*time.Second,
 		"interval of walking through the folders, not for files",
+	)
+	cmd.StringVar(
+		&options.InputPath,
+		"watchpath",
+		"",
+		"path of watched direcotry",
 	)
 	cmd.StringVar(
 		&options.FileNamePattern,
