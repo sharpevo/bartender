@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
+	"regexp"
 )
 
 type ExtractCommand struct {
@@ -21,6 +22,7 @@ type ExtractCommand struct {
 	Options       *options.Options
 	Recursive     bool
 	Columns       []int
+	Regexp        *regexp.Regexp
 }
 
 func NewExtractCommand() *ExtractCommand {
@@ -56,6 +58,13 @@ func (c *ExtractCommand) Validate() (err error) {
 		"serverOptions": commonOptions.Debug(c.ServerOptions),
 		"options":       commonOptions.Debug(c.Options),
 	}).Debug("LOG")
+	c.Regexp, err = regexp.Compile(c.WatchOptions.FileNamePattern)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"path":    c.Options.InputPath,
+			"message": err.Error(),
+		}).Error("PRS")
+	}
 	return nil
 }
 
@@ -110,6 +119,17 @@ func (c *ExtractCommand) Execute() error {
 }
 
 func (c *ExtractCommand) process(inputPath string) error {
+	if !c.Regexp.MatchString(inputPath) {
+		logrus.WithFields(logrus.Fields{
+			"file": inputPath,
+			"message": fmt.Sprintf(
+				"file '%s' is not matched with pattern '%s'",
+				inputPath,
+				c.WatchOptions.FileNamePattern,
+			),
+		}).Warn("PRS")
+		return nil
+	}
 	outputFile, err := c.extract(inputPath)
 	if err != nil {
 		return err
