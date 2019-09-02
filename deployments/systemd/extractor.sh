@@ -18,5 +18,6 @@ do
     -username=root \
     -password=***REMOVED*** \
     -watch=false \
+    -namepattern="^.*\\.(xlsx|xlsm|xls)$" \
     -interval=5s
 done
