@@ -5,7 +5,7 @@ After = network.target
 [Service]
 User = igenetech
 Group = igenetech
-WorkingDirectory = /opt/automation
+WorkingDirectory = /opt/automation/extractor
 ExecStart = /bin/bash /opt/automation/extractor/extractor.sh
 ExecStop = /bin/kill -15 $MAINPID
 PrivateTmp = true

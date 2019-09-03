@@ -1,15 +1,12 @@
 #!/bin/bash
-BASE="/opt/automation/extractor"
-source $BASE/password.rc
+source ~/go/src/automation/password.rc
 INPUT="/public/home/link/chart"
-cd $BASE
+cd /opt/automation/extractor
 inotifywait -m -r -q $INPUT -e close_write --format '%w%f'|while read newfile
 do
     echo "==> $newfile"
 ./extractor \
-    -inputpath="$newfile" \
-    -namepattern="^.*\\.(xlsx|xlsm|xls|txt)$" \
-    -extractpattern="^.*\\.(xlsx|xlsm|xls)$" \
+    -inputpath=$newfile \
     -sheet=1 \
     -rowstart=2 \
     -rowend=-1 \

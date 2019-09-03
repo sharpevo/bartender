@@ -1,7 +1,8 @@
 #!/bin/bash
-
-INPUT="/opt/automation/transmitter/input"
-cd /opt/automation/transmitter
+BASE="/opt/automation/transmitter"
+source $BASE/password.rc
+INPUT="$BASE/input"
+cd $BASE
 inotifywait -m -r -q $INPUT -e close_write --format '%w%f'|while read newfile
 do
     echo "==> $newfile"
@@ -10,10 +11,10 @@ do
     -watchpath="$INPUT" \
     -transfer=true \
     -remotepath=/public/home/link/ecs \
-    -hostkey="***REMOVED***" \
+    -hostkey="$LOCAL_KEY" \
     -username=igenetech \
     -watch=false \
-    -password=***REMOVED***
+    -password=$LOCAL_PWD
 #-loglevel=debug \
 #-namepattern=".\.abc$" \
 done
