@@ -23,6 +23,7 @@ type ExtractCommand struct {
 	Recursive     bool
 	Columns       []int
 	Regexp        *regexp.Regexp
+	RegexpExtract *regexp.Regexp
 }
 
 func NewExtractCommand() *ExtractCommand {
@@ -62,6 +63,13 @@ func (c *ExtractCommand) Validate() (err error) {
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"path":    c.Options.InputPath,
+			"message": err.Error(),
+		}).Error("PRS")
+	}
+	c.RegexpExtract, err = regexp.Compile(c.Options.ExtractPattern)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"path":    c.Options.ExtractPattern,
 			"message": err.Error(),
 		}).Error("PRS")
 	}
@@ -121,7 +129,6 @@ func (c *ExtractCommand) Execute() error {
 func (c *ExtractCommand) process(inputPath string) error {
 	if !c.Regexp.MatchString(inputPath) {
 		logrus.WithFields(logrus.Fields{
-			"file": inputPath,
 			"message": fmt.Sprintf(
 				"file '%s' is not matched with pattern '%s'",
 				inputPath,
@@ -130,9 +137,22 @@ func (c *ExtractCommand) process(inputPath string) error {
 		}).Warn("PRS")
 		return nil
 	}
-	outputFile, err := c.extract(inputPath)
-	if err != nil {
-		return err
+	var outputFile string
+	var err error
+	if c.RegexpExtract.MatchString(inputPath) {
+		outputFile, err = c.extract(inputPath)
+		if err != nil {
+			return err
+		}
+	} else {
+		logrus.WithFields(logrus.Fields{
+			"file": inputPath,
+			"message": fmt.Sprintf(
+				"file '%s' will transfer directly",
+				inputPath,
+			),
+		}).Info("PRS")
+		outputFile = inputPath
 	}
 	if !c.ServerOptions.Enabled {
 		return nil
