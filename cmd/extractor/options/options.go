@@ -5,13 +5,14 @@ import (
 )
 
 type Options struct {
-	InputPath     string
-	SheetIndex    int
-	RowStartsAt   int
-	RowEndsAt     int
-	ColumnIndices string
-	OutputType    string
-	OutputPath    string
+	InputPath      string
+	SheetIndex     int
+	RowStartsAt    int
+	RowEndsAt      int
+	ColumnIndices  string
+	OutputType     string
+	OutputPath     string
+	ExtractPattern string
 }
 
 func AttachOptions(cmd *flag.FlagSet) *Options {
@@ -57,6 +58,12 @@ func AttachOptions(cmd *flag.FlagSet) *Options {
 		"outputpath",
 		"",
 		"path of output directory",
+	)
+	cmd.StringVar(
+		&options.ExtractPattern,
+		"extractpattern",
+		"",
+		"filename pattern to extract",
 	)
 	return options
 }
