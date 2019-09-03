@@ -6,6 +6,8 @@ do
     echo "==> $newfile"
 ./extractor \
     -inputpath="$newfile" \
+    -namepattern="^.*\\.(xlsx|xlsm|xls|txt)$" \
+    -extractpattern="^.*\\.(xlsx|xlsm|xls)$" \
     -sheet=1 \
     -rowstart=2 \
     -rowend=-1 \
@@ -18,6 +20,5 @@ do
     -username=root \
     -password=***REMOVED*** \
     -watch=false \
-    -namepattern="^.*\\.(xlsx|xlsm|xls)$" \
     -interval=5s
 done
