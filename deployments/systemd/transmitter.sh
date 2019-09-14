@@ -12,7 +12,7 @@ do
     -transfer=true \
     -remotepath=/public/home/link/ecs \
     -hostkey="$LOCAL_KEY" \
-    -username=igenetech \
+    -username=xuexh \
     -watch=false \
     -password=$LOCAL_PWD
 #-loglevel=debug \
