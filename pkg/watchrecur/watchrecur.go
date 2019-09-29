@@ -1,16 +1,20 @@
 package watchrecur
 
 import (
+	"fmt"
 	"github.com/fsnotify/fsnotify"
 	"github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
 var (
 	watcher    *fsnotify.Watcher
 	terminated = make(chan struct{})
+	benchMap   = make(map[string]time.Time)
+	benchLock  = sync.RWMutex{}
 )
 
 type Callback func(inputPath string) error
@@ -22,7 +26,7 @@ func NewWatcher() *fsnotify.Watcher {
 
 func Watch(
 	inputPath string,
-	interval time.Duration,
+	expiration time.Duration,
 	callback Callback,
 ) {
 	watcher, _ = fsnotify.NewWatcher()
@@ -35,8 +39,25 @@ func Watch(
 					return
 				}
 				if event.Op&fsnotify.CloseWrite == fsnotify.CloseWrite {
-					if callback(event.Name) != nil {
+					filePath := event.Name
+					benchLock.Lock()
+					tryRemoveFromBench(filePath)
+					benchLock.Unlock()
+					logrus.WithFields(logrus.Fields{
+						"message": fmt.Sprintf("DET '%s'", filePath),
+					}).Debug("WCH")
+					if callback(filePath) != nil {
 						terminated <- struct{}{}
+					}
+				}
+				if event.Op&fsnotify.Create == fsnotify.Create {
+					filePath := event.Name
+					f, _ := os.Stat(filePath)
+					if f.Mode().IsDir() {
+						//watcher.Add(filePath)
+						var err error
+						addToWatcher(filePath, f, err)
+						scanFiles(filePath)
 					}
 				}
 			case err, ok := <-watcher.Errors:
@@ -49,8 +70,74 @@ func Watch(
 			}
 		}
 	}()
-	go scan(inputPath, interval)
+	go scanDirectories(inputPath)
+	go scanBench(callback, expiration)
 	<-terminated
+}
+
+func scanFiles(inputPath string) {
+	if err := filepath.Walk(inputPath, addToBench); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"path":    inputPath,
+			"message": err.Error(),
+		}).Error("WCH")
+	}
+}
+
+func addToBench(inputPath string, f os.FileInfo, err error) error {
+	if f.Mode().IsRegular() {
+		benchLock.Lock()
+		benchMap[inputPath] = time.Now()
+		logrus.WithFields(logrus.Fields{
+			"message": fmt.Sprintf("add '%s' to bench", inputPath),
+		}).Debug("WCH")
+		benchLock.Unlock()
+		return nil
+	}
+	return nil
+}
+
+func tryRemoveFromBench(inputPath string) {
+	if _, ok := benchMap[inputPath]; ok {
+		delete(benchMap, inputPath)
+		logrus.WithFields(logrus.Fields{
+			"message": fmt.Sprintf("remove '%s' from bench", inputPath),
+		}).Debug("WCH")
+	}
+}
+
+func scanBench(callback Callback, expiration time.Duration) {
+	ticker := time.NewTicker(expiration)
+	defer ticker.Stop()
+	for ; ; <-ticker.C {
+		benchLock.Lock()
+		earlist := time.Now().Add(-expiration)
+		for filePath, timestamp := range benchMap {
+			if timestamp.Before(earlist) {
+				tryRemoveFromBench(filePath)
+				logrus.WithFields(logrus.Fields{
+					"message": fmt.Sprintf("EXP '%s': %v",
+						filePath,
+						timestamp.Format("2006-01-02_15:04:05"),
+					),
+				}).Debug("WCH")
+				if err := callback(filePath); err != nil {
+					terminated <- struct{}{}
+					ticker.Stop()
+				}
+			}
+		}
+		benchLock.Unlock()
+	}
+}
+
+func scanDirectories(inputPath string) {
+	if err := filepath.Walk(inputPath, addToWatcher); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"path":    inputPath,
+			"message": err.Error(),
+		}).Error("WCH")
+	}
 }
 
 func scan(inputPath string, duration time.Duration) {
@@ -77,7 +164,8 @@ func scan(inputPath string, duration time.Duration) {
 func addToWatcher(inputPath string, f os.FileInfo, err error) error {
 	if f.Mode().IsDir() {
 		logrus.WithFields(logrus.Fields{
-			"file": inputPath,
+			"file":    inputPath,
+			"message": fmt.Sprintf("add '%v' to watcher", inputPath),
 		}).Debug("WCH")
 		return watcher.Add(inputPath)
 	}
