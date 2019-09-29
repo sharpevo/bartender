@@ -72,7 +72,7 @@ func AttachWatchOptions(cmd *flag.FlagSet) *WatchOptions {
 		&options.Interval,
 		"interval",
 		10*time.Second,
-		"interval of walking through the folders, not for files",
+		"interval of walking through the bench",
 	)
 	cmd.StringVar(
 		&options.InputPath,
