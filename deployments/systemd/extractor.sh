@@ -3,11 +3,8 @@ BASE="/opt/automation/extractor"
 source $BASE/password.rc
 INPUT="/public/home/link/chart"
 cd $BASE
-inotifywait -m -r -q $INPUT -e close_write --format '%w%f'|while read newfile
-do
-    echo "==> $newfile"
 ./extractor \
-    -inputpath="$newfile" \
+    -inputpath="$INPUT" \
     -namepattern="^.*\\.(xlsx|xlsm|xls|txt)$" \
     -extractpattern="^.*\\.(xlsx|xlsm|xls)$" \
     -sheet=1 \
@@ -21,6 +18,6 @@ do
     -hostkey="$ECS_KEY" \
     -username=root \
     -password=$ECS_PWD \
-    -watch=false \
-    -interval=5s
+    -watch=true \
+    -interval=10s
 done
