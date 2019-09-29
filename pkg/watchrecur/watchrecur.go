@@ -102,7 +102,7 @@ func add(ignores []string) filepath.WalkFunc {
 			benchLock.Lock()
 			benchMap[inputPath] = time.Now()
 			logrus.WithFields(logrus.Fields{
-				"message": fmt.Sprintf("add '%s' to bench", inputPath),
+				"message": fmt.Sprintf("bench '%s'", inputPath),
 			}).Debug("WCH")
 			benchLock.Unlock()
 			return nil
@@ -115,7 +115,7 @@ func tryRemoveFromBench(inputPath string) {
 	if _, ok := benchMap[inputPath]; ok {
 		delete(benchMap, inputPath)
 		logrus.WithFields(logrus.Fields{
-			"message": fmt.Sprintf("remove '%s' from bench", inputPath),
+			"message": fmt.Sprintf("unbench '%s'", inputPath),
 		}).Debug("WCH")
 	}
 }
@@ -157,8 +157,7 @@ func scanDirectories(inputPath string) {
 func addToWatcher(inputPath string, f os.FileInfo, err error) error {
 	if f.Mode().IsDir() {
 		logrus.WithFields(logrus.Fields{
-			"file":    inputPath,
-			"message": fmt.Sprintf("add '%v' to watcher", inputPath),
+			"message": fmt.Sprintf("watch '%s'", inputPath),
 		}).Debug("WCH")
 		return watcher.Add(inputPath)
 	}
