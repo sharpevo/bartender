@@ -26,7 +26,7 @@ func NewWatcher() *fsnotify.Watcher {
 
 func Watch(
 	inputPath string,
-	expiration time.Duration,
+	interval time.Duration,
 	callback Callback,
 ) {
 	watcher, _ = fsnotify.NewWatcher()
@@ -70,7 +70,7 @@ func Watch(
 		}
 	}()
 	go scanDirectories(inputPath)
-	go scanBench(callback, expiration)
+	go scanBench(callback, interval)
 	<-terminated
 }
 
@@ -120,12 +120,12 @@ func tryRemoveFromBench(inputPath string) {
 	}
 }
 
-func scanBench(callback Callback, expiration time.Duration) {
-	ticker := time.NewTicker(expiration)
+func scanBench(callback Callback, interval time.Duration) {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for ; ; <-ticker.C {
 		benchLock.Lock()
-		earlist := time.Now().Add(-expiration)
+		earlist := time.Now().Add(-interval)
 		for filePath, timestamp := range benchMap {
 			if timestamp.Before(earlist) {
 				tryRemoveFromBench(filePath)
