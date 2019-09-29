@@ -154,27 +154,6 @@ func scanDirectories(inputPath string) {
 	}
 }
 
-func xscan(inputPath string, duration time.Duration) {
-	done := make(chan struct{})
-	go func() {
-		done <- struct{}{}
-	}()
-	ticker := time.NewTicker(duration)
-	defer ticker.Stop()
-	for ; ; <-ticker.C {
-		<-done
-		if err := filepath.Walk(inputPath, addToWatcher); err != nil {
-			logrus.WithFields(logrus.Fields{
-				"path":    inputPath,
-				"message": err.Error(),
-			}).Error("WCH")
-		}
-		go func() {
-			done <- struct{}{}
-		}()
-	}
-}
-
 func addToWatcher(inputPath string, f os.FileInfo, err error) error {
 	if f.Mode().IsDir() {
 		logrus.WithFields(logrus.Fields{
