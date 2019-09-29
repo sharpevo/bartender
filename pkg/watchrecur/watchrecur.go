@@ -54,10 +54,9 @@ func Watch(
 					filePath := event.Name
 					f, _ := os.Stat(filePath)
 					if f.Mode().IsDir() {
-						//watcher.Add(filePath)
 						var err error
 						addToWatcher(filePath, f, err)
-						scanFiles(filePath)
+						scan(filePath)
 					}
 				}
 			case err, ok := <-watcher.Errors:
@@ -75,8 +74,8 @@ func Watch(
 	<-terminated
 }
 
-func scanFiles(inputPath string) {
-	if err := filepath.Walk(inputPath, addToBench); err != nil {
+func scan(inputPath string) {
+	if err := filepath.Walk(inputPath, add([]string{inputPath})); err != nil {
 		logrus.WithFields(logrus.Fields{
 			"path":    inputPath,
 			"message": err.Error(),
@@ -84,17 +83,32 @@ func scanFiles(inputPath string) {
 	}
 }
 
-func addToBench(inputPath string, f os.FileInfo, err error) error {
-	if f.Mode().IsRegular() {
-		benchLock.Lock()
-		benchMap[inputPath] = time.Now()
-		logrus.WithFields(logrus.Fields{
-			"message": fmt.Sprintf("add '%s' to bench", inputPath),
-		}).Debug("WCH")
-		benchLock.Unlock()
+func add(ignores []string) filepath.WalkFunc {
+	return func(inputPath string, f os.FileInfo, err error) error {
+		for _, ignore := range ignores {
+			if inputPath == ignore {
+				logrus.WithFields(logrus.Fields{
+					"message": fmt.Sprintf("ignore directory '%s'", inputPath),
+				}).Debug("WCH")
+				return nil
+			}
+		}
+		if f.Mode().IsDir() {
+			addToWatcher(inputPath, f, err)
+			scan(inputPath)
+			return nil
+		}
+		if f.Mode().IsRegular() {
+			benchLock.Lock()
+			benchMap[inputPath] = time.Now()
+			logrus.WithFields(logrus.Fields{
+				"message": fmt.Sprintf("add '%s' to bench", inputPath),
+			}).Debug("WCH")
+			benchLock.Unlock()
+			return nil
+		}
 		return nil
 	}
-	return nil
 }
 
 func tryRemoveFromBench(inputPath string) {
@@ -140,7 +154,7 @@ func scanDirectories(inputPath string) {
 	}
 }
 
-func scan(inputPath string, duration time.Duration) {
+func xscan(inputPath string, duration time.Duration) {
 	done := make(chan struct{})
 	go func() {
 		done <- struct{}{}
