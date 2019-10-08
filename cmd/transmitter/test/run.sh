@@ -1,7 +1,8 @@
 #!/bin/bash
 source ~/go/src/automation/password.rc
 ../transmitter \
-    -sourcepath=input \
+    -sourcepath=/tmp/input \
+    -watchpath=/tmp/input \
     -transfer=true \
     -remotepath=/root/wuy/testauto \
     -hostkey="$ECS_KEY" \
