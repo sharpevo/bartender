@@ -26,11 +26,6 @@ func (c Callback) call(inputPath string) error {
 	return c(inputPath)
 }
 
-func NewWatcher() *fsnotify.Watcher {
-	watcher, _ = fsnotify.NewWatcher()
-	return watcher
-}
-
 func Watch(
 	inputPath string,
 	interval time.Duration,
