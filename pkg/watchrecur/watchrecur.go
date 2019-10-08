@@ -11,13 +11,20 @@ import (
 )
 
 var (
-	watcher    *fsnotify.Watcher
-	terminated = make(chan struct{})
-	benchMap   = make(map[string]time.Time)
-	benchLock  = sync.RWMutex{}
+	watcher      *fsnotify.Watcher
+	terminated   = make(chan struct{})
+	benchMap     = make(map[string]time.Time)
+	benchLock    = sync.RWMutex{}
+	callbackLock = sync.RWMutex{}
 )
 
 type Callback func(inputPath string) error
+
+func (c Callback) call(inputPath string) error {
+	callbackLock.Lock()
+	defer callbackLock.Unlock()
+	return c(inputPath)
+}
 
 func NewWatcher() *fsnotify.Watcher {
 	watcher, _ = fsnotify.NewWatcher()
@@ -46,7 +53,7 @@ func Watch(
 					logrus.WithFields(logrus.Fields{
 						"message": fmt.Sprintf("DET '%s'", filePath),
 					}).Debug("WCH")
-					if callback(filePath) != nil {
+					if callback.call(filePath) != nil {
 						terminated <- struct{}{}
 					}
 				}
@@ -56,7 +63,9 @@ func Watch(
 					if f.Mode().IsDir() {
 						var err error
 						addToWatcher(filePath, f, err)
+						benchLock.Lock()
 						scan(filePath)
+						benchLock.Unlock()
 					}
 				}
 			case err, ok := <-watcher.Errors:
@@ -99,12 +108,12 @@ func add(ignores []string) filepath.WalkFunc {
 			return nil
 		}
 		if f.Mode().IsRegular() {
-			benchLock.Lock()
+			//benchLock.Lock()
 			benchMap[inputPath] = time.Now()
 			logrus.WithFields(logrus.Fields{
 				"message": fmt.Sprintf("bench '%s'", inputPath),
 			}).Debug("WCH")
-			benchLock.Unlock()
+			//benchLock.Unlock()
 			return nil
 		}
 		return nil
@@ -135,7 +144,7 @@ func scanBench(callback Callback, interval time.Duration) {
 						timestamp.Format("2006-01-02_15:04:05"),
 					),
 				}).Debug("WCH")
-				if err := callback(filePath); err != nil {
+				if err := callback.call(filePath); err != nil {
 					terminated <- struct{}{}
 					ticker.Stop()
 				}
