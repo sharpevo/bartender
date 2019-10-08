@@ -33,6 +33,8 @@ func Watch(
 ) {
 	watcher, _ = fsnotify.NewWatcher()
 	defer watcher.Close()
+	watchDirectory(inputPath)
+	go scanDirectory(inputPath, false)
 	go func() {
 		for {
 			select {
@@ -40,6 +42,7 @@ func Watch(
 				if !ok {
 					return
 				}
+				// TODO: event overflow
 				if event.Op&fsnotify.CloseWrite == fsnotify.CloseWrite {
 					filePath := event.Name
 					benchLock.Lock()
@@ -54,14 +57,13 @@ func Watch(
 				}
 				if event.Op&fsnotify.Create == fsnotify.Create {
 					filePath := event.Name
-					f, _ := os.Stat(filePath)
-					if f.Mode().IsDir() {
-						var err error
-						addToWatcher(filePath, f, err)
-						benchLock.Lock()
-						scan(filePath)
-						benchLock.Unlock()
+					if !isDir(filePath) {
+						continue
 					}
+					watchDirectory(filePath)
+					benchLock.Lock()
+					scanDirectory(filePath, true)
+					benchLock.Unlock()
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
@@ -73,13 +75,15 @@ func Watch(
 			}
 		}
 	}()
-	go scanDirectories(inputPath)
 	go scanBench(callback, interval)
 	<-terminated
 }
 
-func scan(inputPath string) {
-	if err := filepath.Walk(inputPath, add([]string{inputPath})); err != nil {
+func scanDirectory(inputPath string, benchable bool) {
+	if !isDir(inputPath) {
+		return
+	}
+	if err := filepath.Walk(inputPath, addWatch([]string{inputPath}, benchable)); err != nil {
 		logrus.WithFields(logrus.Fields{
 			"path":    inputPath,
 			"message": err.Error(),
@@ -87,28 +91,26 @@ func scan(inputPath string) {
 	}
 }
 
-func add(ignores []string) filepath.WalkFunc {
+func addWatch(ignores []string, benchable bool) filepath.WalkFunc {
 	return func(inputPath string, f os.FileInfo, err error) error {
 		for _, ignore := range ignores {
 			if inputPath == ignore {
 				logrus.WithFields(logrus.Fields{
-					"message": fmt.Sprintf("ignore directory '%s'", inputPath),
+					"message": fmt.Sprintf("ignore '%s'", inputPath),
 				}).Debug("WCH")
 				return nil
 			}
 		}
 		if f.Mode().IsDir() {
-			addToWatcher(inputPath, f, err)
-			scan(inputPath)
+			watchDirectory(inputPath)
+			scanDirectory(inputPath, benchable)
 			return nil
 		}
-		if f.Mode().IsRegular() {
-			//benchLock.Lock()
+		if f.Mode().IsRegular() && benchable {
 			benchMap[inputPath] = time.Now()
 			logrus.WithFields(logrus.Fields{
 				"message": fmt.Sprintf("bench '%s'", inputPath),
 			}).Debug("WCH")
-			//benchLock.Unlock()
 			return nil
 		}
 		return nil
@@ -149,21 +151,18 @@ func scanBench(callback Callback, interval time.Duration) {
 	}
 }
 
-func scanDirectories(inputPath string) {
-	if err := filepath.Walk(inputPath, addToWatcher); err != nil {
-		logrus.WithFields(logrus.Fields{
-			"path":    inputPath,
-			"message": err.Error(),
-		}).Error("WCH")
+func watchDirectory(inputPath string) error {
+	if !isDir(inputPath) {
+		return nil
 	}
+	logrus.WithFields(logrus.Fields{
+		"message": fmt.Sprintf("watch '%s'", inputPath),
+	}).Debug("WCH")
+	// TODO: ignore EINVAL
+	return watcher.Add(inputPath)
 }
 
-func addToWatcher(inputPath string, f os.FileInfo, err error) error {
-	if f.Mode().IsDir() {
-		logrus.WithFields(logrus.Fields{
-			"message": fmt.Sprintf("watch '%s'", inputPath),
-		}).Debug("WCH")
-		return watcher.Add(inputPath)
-	}
-	return nil
+func isDir(inputPath string) bool {
+	f, _ := os.Stat(inputPath)
+	return f.Mode().IsDir()
 }
