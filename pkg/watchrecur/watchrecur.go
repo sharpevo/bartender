@@ -15,14 +15,63 @@ var (
 	terminated   = make(chan struct{})
 	benchMap     = make(map[string]time.Time)
 	benchLock    = sync.RWMutex{}
+	callbackMap  = make(map[string]map[string]bool)
 	callbackLock = sync.RWMutex{}
 )
 
 type Callback func(inputPath string) error
 
-func (c Callback) call(inputPath string) error {
+func initCallbackMap(inputPath string) {
 	callbackLock.Lock()
 	defer callbackLock.Unlock()
+	cm := make(map[string]bool)
+	callbackMap[callbackMapKey(inputPath)] = cm
+	logrus.WithFields(logrus.Fields{
+		"message": fmt.Sprintf("callbackmap init '%s'", inputPath),
+	}).Debug("WCH")
+}
+
+func clearCallbackMap(inputPath string) {
+	callbackLock.Lock()
+	defer callbackLock.Unlock()
+	delete(callbackMap, callbackMapKey(inputPath))
+	logrus.WithFields(logrus.Fields{
+		"message": fmt.Sprintf("callbackmap destroy '%s'", inputPath),
+	}).Debug("WCH")
+}
+
+func callbackMapKey(inputPath string) string {
+	return filepath.Join(inputPath, "*")
+}
+
+func addCallbackMap(inputPath string) {
+	callbackLock.Lock()
+	defer callbackLock.Unlock()
+	if len(callbackMap) > 0 {
+		for pattern, cm := range callbackMap {
+			if matched, _ := filepath.Match(pattern, inputPath); matched {
+				cm[inputPath] = true
+				logrus.WithFields(logrus.Fields{
+					"message": fmt.Sprintf("callbackmap add '%s'", inputPath),
+				}).Debug("WCH")
+			}
+		}
+	}
+}
+
+func inCallbackMap(inputPath string) bool {
+	callbackLock.Lock()
+	defer callbackLock.Unlock()
+	for _, cm := range callbackMap {
+		if cm[inputPath] {
+			return true
+		}
+	}
+	return false
+}
+
+func (c Callback) call(inputPath string) error {
+	addCallbackMap(inputPath)
 	return c(inputPath)
 }
 
@@ -60,10 +109,11 @@ func Watch(
 					if !isDir(filePath) {
 						continue
 					}
+					logrus.WithFields(logrus.Fields{
+						"message": fmt.Sprintf("DET create '%s'", filePath),
+					}).Debug("WCH")
 					watchDirectory(filePath)
-					benchLock.Lock()
 					scanDirectory(filePath, true)
-					benchLock.Unlock()
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
@@ -80,6 +130,10 @@ func Watch(
 }
 
 func scanDirectory(inputPath string, benchable bool) {
+	logrus.WithFields(logrus.Fields{
+		"message": fmt.Sprintf("scan '%s'", inputPath),
+	}).Debug("WCH")
+	initCallbackMap(inputPath)
 	if !isDir(inputPath) {
 		return
 	}
@@ -89,6 +143,7 @@ func scanDirectory(inputPath string, benchable bool) {
 			"message": err.Error(),
 		}).Error("WCH")
 	}
+	clearCallbackMap(inputPath)
 }
 
 func addWatch(ignores []string, benchable bool) filepath.WalkFunc {
@@ -107,7 +162,15 @@ func addWatch(ignores []string, benchable bool) filepath.WalkFunc {
 			return nil
 		}
 		if f.Mode().IsRegular() && benchable {
+			if inCallbackMap(inputPath) {
+				logrus.WithFields(logrus.Fields{
+					"message": fmt.Sprintf("not bench '%s'", inputPath),
+				}).Debug("WCH")
+				return nil
+			}
+			benchLock.Lock()
 			benchMap[inputPath] = time.Now()
+			benchLock.Unlock()
 			logrus.WithFields(logrus.Fields{
 				"message": fmt.Sprintf("bench '%s'", inputPath),
 			}).Debug("WCH")
