@@ -159,7 +159,7 @@ func addWatch(ignores []string, benchable bool) filepath.WalkFunc {
 		if f.Mode().IsDir() {
 			watchDirectory(inputPath)
 			scanDirectory(inputPath, benchable)
-			return nil
+			return filepath.SkipDir
 		}
 		if f.Mode().IsRegular() && benchable {
 			if inCallbackMap(inputPath) {
