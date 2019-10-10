@@ -10,7 +10,50 @@ import (
 	"path/filepath"
 )
 
-func TransViaPassword(
+const (
+	NUM_WORKER = 3
+	NUM_QUEUE  = 10
+)
+
+var inputc = make(chan configuration, NUM_QUEUE)
+
+func init() {
+	for i := 0; i < NUM_WORKER; i++ {
+		go execute(i, inputc)
+	}
+}
+
+type configuration struct {
+	hostKey        string
+	username       string
+	password       string
+	localFilepath  string
+	remoteFilename string
+	remoteDir      string
+	outputc        chan error
+}
+
+func execute(
+	id int,
+	inputc <-chan configuration,
+) {
+	for conf := range inputc {
+		logrus.WithFields(logrus.Fields{
+			"message": fmt.Sprintf("worker %d: %s", id, conf.localFilepath),
+		}).Debug("SND")
+		conf.outputc <- transViaPassword(
+			conf.hostKey,
+			conf.username,
+			conf.password,
+			conf.localFilepath,
+			conf.remoteFilename,
+			conf.remoteDir,
+		)
+	}
+	return
+}
+
+func transViaPassword(
 	hostKey string,
 	username string,
 	password string,
@@ -101,4 +144,26 @@ func TransViaPassword(
 		"remote": remoteDir,
 	}).Info("SND")
 	return nil
+}
+
+func TransViaPassword(
+	hostKey string,
+	username string,
+	password string,
+	localFilepath string,
+	remoteFilename string,
+	remoteDir string,
+) error {
+	conf := configuration{
+		hostKey:        hostKey,
+		username:       username,
+		password:       password,
+		localFilepath:  localFilepath,
+		remoteFilename: remoteFilename,
+		remoteDir:      remoteDir,
+		outputc:        make(chan error),
+	}
+	inputc <- conf
+	err := <-conf.outputc
+	return err
 }
