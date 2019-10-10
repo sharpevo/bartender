@@ -4,10 +4,10 @@ source ~/go/src/automation/password.rc
     -sourcepath=/tmp/input \
     -watchpath=/tmp/input \
     -transfer=true \
-    -remotepath=/root/wuy/testauto \
-    -hostkey="$ECS_KEY" \
-    -username=root \
+    -remotepath=/home/igenetech/testauto \
+    -hostkey="$LAN_KEY" \
+    -username=igenetech \
     -watch=true \
     -loglevel=debug \
-    -password=$ECS_PWD
+    -password=$LAN_PWD
     #-namepattern=".\.abc$" \
