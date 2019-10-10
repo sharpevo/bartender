@@ -111,27 +111,33 @@ func TestConvertColumnIndices(t *testing.T) {
 func TestMakeOutputFilePath(t *testing.T) {
 	cases := []struct {
 		outputpath string
-		filename   string
+		inputpath  string
 		fileext    string
 		expect     string
 	}{
 		{
 			outputpath: "/tmp/output",
-			filename:   "testfile.xlsx",
+			inputpath:  "testfile.xlsx",
 			fileext:    "csv",
 			expect:     "/tmp/output/testfile.csv",
 		},
 		{
 			outputpath: "",
-			filename:   "testfile.xlsx",
+			inputpath:  "testfile.xlsx",
 			fileext:    "txt",
 			expect:     "testfile.txt",
+		},
+		{
+			outputpath: "/tmp/output",
+			inputpath:  "/a/b/c/testfile.xlsx",
+			fileext:    "csv",
+			expect:     "/tmp/output/a/b/c/testfile.csv",
 		},
 	}
 	for index, c := range cases {
 		t.Run(fmt.Sprintf("%v", index), func(t *testing.T) {
 			outputfilepath := fsop.MakeOutputFilePath(
-				c.outputpath, c.filename, c.fileext)
+				c.outputpath, c.inputpath, c.fileext)
 			if outputfilepath != c.expect {
 				t.Errorf(
 					"\nEXPECT: %v\n GET: %v\n\n",
