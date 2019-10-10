@@ -57,9 +57,11 @@ func transViaPassword(
 	remoteDir string,
 ) error {
 	logrus.WithFields(logrus.Fields{
-		"local":     localFilepath,
-		"remoteDir": remoteDir,
-		"message":   "sending...",
+		"message": fmt.Sprintf(
+			"sending '%s' to '%s'",
+			localFilepath,
+			remoteDir,
+		),
 	}).Debug("SND")
 	if username == "" {
 		return fmt.Errorf("missing username")
@@ -116,8 +118,10 @@ func transViaPassword(
 	}
 	if client.Chmod(remoteFilepath, os.FileMode(0755)) != nil {
 		logrus.WithFields(logrus.Fields{
-			"file":    remoteFilepath,
-			"message": "failed to chmod",
+			"message": fmt.Sprintf(
+				"failed to chmod '%s'",
+				remoteFilepath,
+			),
 		}).Error("SND")
 	}
 	defer dstFile.Close()
@@ -135,8 +139,11 @@ func transViaPassword(
 		"bytesSent": bytes,
 	}).Debug("SND")
 	logrus.WithFields(logrus.Fields{
-		"local":  localFilepath,
-		"remote": remoteDir,
+		"message": fmt.Sprintf(
+			"sent '%s' to '%s'",
+			localFilepath,
+			remoteDir,
+		),
 	}).Info("SND")
 	return nil
 }

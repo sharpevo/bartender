@@ -146,7 +146,6 @@ func (c *ExtractCommand) process(inputPath string) error {
 		}
 	} else {
 		logrus.WithFields(logrus.Fields{
-			"file": inputPath,
 			"message": fmt.Sprintf(
 				"file '%s' will transfer directly",
 				inputPath,
