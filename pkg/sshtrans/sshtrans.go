@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	NUM_WORKER      = 15
+	NUM_WORKER      = 3
 	NUM_QUEUE       = 10
 	RESENDABLE      = true
 	RESEND_INTERVAL = 10 * time.Second
