@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	NUM_WORKER = 15
+	NUM_WORKER = 3
 	NUM_QUEUE  = 10
 )
 
@@ -20,7 +20,7 @@ var dispatcher = workerpool.NewDispatcher(NUM_QUEUE, NUM_WORKER, launchWorker)
 
 func launchWorker(id int, inputc chan workerpool.Request) {
 	for request := range inputc {
-		data, _ := request.Data.(configuration)
+		data, _ := request.Data.(transData)
 		logrus.WithFields(logrus.Fields{
 			"message": fmt.Sprintf("worker TRS-%d: %s", id, data.localFilepath),
 		}).Debug("SND")
@@ -35,7 +35,7 @@ func launchWorker(id int, inputc chan workerpool.Request) {
 	}
 }
 
-type configuration struct {
+type transData struct {
 	hostKey        string
 	username       string
 	password       string
@@ -146,7 +146,7 @@ func TransViaPassword(
 	remoteFilename string,
 	remoteDir string,
 ) error {
-	data := configuration{
+	data := transData{
 		hostKey:        hostKey,
 		username:       username,
 		password:       password,
