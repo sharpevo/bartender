@@ -9,11 +9,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const (
-	NUM_WORKER = 3
-	NUM_QUEUE  = 10
+	NUM_WORKER      = 15
+	NUM_QUEUE       = 10
+	RESENDABLE      = true
+	RESEND_INTERVAL = 10 * time.Second
 )
 
 var dispatcher = workerpool.NewDispatcher(NUM_QUEUE, NUM_WORKER, launchWorker)
@@ -154,13 +157,41 @@ func TransViaPassword(
 		remoteFilename: remoteFilename,
 		remoteDir:      remoteDir,
 	}
-	errorc := make(chan error)
-	dispatcher.AddRequest(workerpool.Request{
-		Data:   data,
-		Errorc: errorc,
-	})
-	if err := <-errorc; err != nil {
-		return err
+	count := 0
+	for {
+		errorc := make(chan error)
+		dispatcher.AddRequest(workerpool.Request{
+			Data:   data,
+			Errorc: errorc,
+		})
+		if err := <-errorc; err != nil {
+			if RESENDABLE {
+				count++
+				logrus.WithFields(logrus.Fields{
+					"message": fmt.Sprintf(
+						"resending '%s' %dth due to %s",
+						localFilepath,
+						count,
+						err.Error(),
+					),
+				}).Info("SND")
+				time.Sleep(RESEND_INTERVAL)
+				continue
+			} else {
+				return err
+			}
+		} else {
+			break
+		}
+	}
+	if count != 0 {
+		logrus.WithFields(logrus.Fields{
+			"message": fmt.Sprintf(
+				"resent '%s' %dth",
+				localFilepath,
+				count,
+			),
+		}).Info("SND")
 	}
 	return nil
 }
