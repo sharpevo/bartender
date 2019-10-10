@@ -1,6 +1,7 @@
 package sshtrans
 
 import (
+	"automation/pkg/workerpool"
 	"fmt"
 	"github.com/pkg/sftp"
 	"github.com/sirupsen/logrus"
@@ -11,15 +12,26 @@ import (
 )
 
 const (
-	NUM_WORKER = 3
+	NUM_WORKER = 15
 	NUM_QUEUE  = 10
 )
 
-var inputc = make(chan configuration, NUM_QUEUE)
+var dispatcher = workerpool.NewDispatcher(NUM_QUEUE, NUM_WORKER, launchWorker)
 
-func init() {
-	for i := 0; i < NUM_WORKER; i++ {
-		go execute(i, inputc)
+func launchWorker(id int, inputc chan workerpool.Request) {
+	for request := range inputc {
+		data, _ := request.Data.(configuration)
+		logrus.WithFields(logrus.Fields{
+			"message": fmt.Sprintf("worker %d: %s", id, data.localFilepath),
+		}).Debug("SND")
+		request.Errorc <- transViaPassword(
+			data.hostKey,
+			data.username,
+			data.password,
+			data.localFilepath,
+			data.remoteFilename,
+			data.remoteDir,
+		)
 	}
 }
 
@@ -31,26 +43,6 @@ type configuration struct {
 	remoteFilename string
 	remoteDir      string
 	outputc        chan error
-}
-
-func execute(
-	id int,
-	inputc <-chan configuration,
-) {
-	for conf := range inputc {
-		logrus.WithFields(logrus.Fields{
-			"message": fmt.Sprintf("worker %d: %s", id, conf.localFilepath),
-		}).Debug("SND")
-		conf.outputc <- transViaPassword(
-			conf.hostKey,
-			conf.username,
-			conf.password,
-			conf.localFilepath,
-			conf.remoteFilename,
-			conf.remoteDir,
-		)
-	}
-	return
 }
 
 func transViaPassword(
@@ -146,6 +138,7 @@ func transViaPassword(
 	return nil
 }
 
+// new request
 func TransViaPassword(
 	hostKey string,
 	username string,
@@ -154,16 +147,27 @@ func TransViaPassword(
 	remoteFilename string,
 	remoteDir string,
 ) error {
-	conf := configuration{
+	data := configuration{
 		hostKey:        hostKey,
 		username:       username,
 		password:       password,
 		localFilepath:  localFilepath,
 		remoteFilename: remoteFilename,
 		remoteDir:      remoteDir,
-		outputc:        make(chan error),
 	}
-	inputc <- conf
-	err := <-conf.outputc
-	return err
+	errorc := make(chan error)
+	dispatcher.AddRequest(newRequest(data, errorc))
+	if err := <-errorc; err != nil {
+		return err
+	}
+	return nil // interface is nil not error
+}
+
+//func newRequest(data configuration, resultc chan error) workerpool.Request {
+// chan interface is different with chan error
+func newRequest(data configuration, errorc chan error) workerpool.Request {
+	return workerpool.Request{
+		Data:   data,
+		Errorc: errorc,
+	}
 }
