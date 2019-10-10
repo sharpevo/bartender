@@ -22,7 +22,7 @@ func launchWorker(id int, inputc chan workerpool.Request) {
 	for request := range inputc {
 		data, _ := request.Data.(configuration)
 		logrus.WithFields(logrus.Fields{
-			"message": fmt.Sprintf("worker %d: %s", id, data.localFilepath),
+			"message": fmt.Sprintf("worker TRS-%d: %s", id, data.localFilepath),
 		}).Debug("SND")
 		request.Errorc <- transViaPassword(
 			data.hostKey,
@@ -138,7 +138,6 @@ func transViaPassword(
 	return nil
 }
 
-// new request
 func TransViaPassword(
 	hostKey string,
 	username string,
@@ -156,18 +155,12 @@ func TransViaPassword(
 		remoteDir:      remoteDir,
 	}
 	errorc := make(chan error)
-	dispatcher.AddRequest(newRequest(data, errorc))
+	dispatcher.AddRequest(workerpool.Request{
+		Data:   data,
+		Errorc: errorc,
+	})
 	if err := <-errorc; err != nil {
 		return err
 	}
-	return nil // interface is nil not error
-}
-
-//func newRequest(data configuration, resultc chan error) workerpool.Request {
-// chan interface is different with chan error
-func newRequest(data configuration, errorc chan error) workerpool.Request {
-	return workerpool.Request{
-		Data:   data,
-		Errorc: errorc,
-	}
+	return nil
 }
