@@ -112,7 +112,6 @@ func (c *TransmitterCommand) Execute() error {
 func (c *TransmitterCommand) process(inputPath string) error {
 	if !c.Regexp.MatchString(inputPath) {
 		logrus.WithFields(logrus.Fields{
-			"file": inputPath,
 			"message": fmt.Sprintf(
 				"file '%s' is not matched with pattern '%s'",
 				inputPath,

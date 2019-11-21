@@ -146,7 +146,6 @@ func (c *ExtractCommand) process(inputPath string) error {
 		}
 	} else {
 		logrus.WithFields(logrus.Fields{
-			"file": inputPath,
 			"message": fmt.Sprintf(
 				"file '%s' will transfer directly",
 				inputPath,
@@ -157,9 +156,6 @@ func (c *ExtractCommand) process(inputPath string) error {
 	if !c.ServerOptions.Enabled {
 		return nil
 	}
-	logrus.WithFields(logrus.Fields{
-		"file": inputPath,
-	}).Info("NEW")
 	remoteDir, remoteFileName := fsop.CustomRemoteFileNameAndDir(
 		inputPath,
 		c.ServerOptions.Directory,
@@ -194,6 +190,10 @@ func (c *ExtractCommand) extract(inputPath string) (outputFile string, err error
 		inputPath,
 		c.Options.OutputType,
 	)
+	dir, _ := filepath.Split(outputFile)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return outputFile, err
+	}
 	switch c.Options.OutputType {
 	case excel.OUTPUT_TYPE_CSV, excel.OUTPUT_TYPE_TXT:
 		if excel.MakeFileCSV(
@@ -218,7 +218,11 @@ func (c *ExtractCommand) extract(inputPath string) (outputFile string, err error
 		)
 	}
 	logrus.WithFields(logrus.Fields{
-		"file": outputFile,
+		"message": fmt.Sprintf(
+			"extract '%s' to '%s'",
+			inputPath,
+			outputFile,
+		),
 	}).Info("PRS")
 	return outputFile, nil
 }

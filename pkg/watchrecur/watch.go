@@ -4,25 +4,26 @@ import (
 	"fmt"
 	"github.com/fsnotify/fsnotify"
 	"github.com/sirupsen/logrus"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 )
 
+type Callback func(inputPath string) error
+
+func (c Callback) call(inputPath string) error {
+	return c(inputPath)
+}
+
 var (
 	watcher    *fsnotify.Watcher
 	terminated = make(chan struct{})
+	fileLock   = sync.RWMutex{}
 	benchMap   = make(map[string]time.Time)
 	benchLock  = sync.RWMutex{}
 )
-
-type Callback func(inputPath string) error
-
-func NewWatcher() *fsnotify.Watcher {
-	watcher, _ = fsnotify.NewWatcher()
-	return watcher
-}
 
 func Watch(
 	inputPath string,
@@ -31,6 +32,7 @@ func Watch(
 ) {
 	watcher, _ = fsnotify.NewWatcher()
 	defer watcher.Close()
+	watch(inputPath, false)
 	go func() {
 		for {
 			select {
@@ -38,26 +40,31 @@ func Watch(
 				if !ok {
 					return
 				}
+				// TODO: event overflow
 				if event.Op&fsnotify.CloseWrite == fsnotify.CloseWrite {
+					fileLock.Lock()
 					filePath := event.Name
-					benchLock.Lock()
-					tryRemoveFromBench(filePath)
-					benchLock.Unlock()
-					logrus.WithFields(logrus.Fields{
-						"message": fmt.Sprintf("DET '%s'", filePath),
-					}).Debug("WCH")
-					if callback(filePath) != nil {
-						terminated <- struct{}{}
-					}
+					go func(inputPath string) {
+						benchLock.Lock()
+						tryRemoveFromBench(inputPath)
+						benchLock.Unlock()
+						logrus.WithFields(logrus.Fields{
+							"message": fmt.Sprintf("DET '%s'", inputPath),
+						}).Debug("WCH")
+						fileLock.Unlock()
+						if callback.call(inputPath) != nil {
+							terminated <- struct{}{}
+						}
+					}(filePath)
 				}
 				if event.Op&fsnotify.Create == fsnotify.Create {
 					filePath := event.Name
-					f, _ := os.Stat(filePath)
-					if f.Mode().IsDir() {
-						var err error
-						addToWatcher(filePath, f, err)
-						scan(filePath)
+					if !isDir(filePath) {
+						continue
 					}
+					fileLock.Lock()
+					watch(filePath, true)
+					fileLock.Unlock()
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
@@ -69,46 +76,36 @@ func Watch(
 			}
 		}
 	}()
-	go scanDirectories(inputPath)
 	go scanBench(callback, interval)
 	<-terminated
 }
 
-func scan(inputPath string) {
-	if err := filepath.Walk(inputPath, add([]string{inputPath})); err != nil {
-		logrus.WithFields(logrus.Fields{
-			"path":    inputPath,
-			"message": err.Error(),
-		}).Error("WCH")
+func watch(inputPath string, benchable bool) error {
+	logrus.WithFields(logrus.Fields{
+		"message": fmt.Sprintf("watch '%s'", inputPath),
+	}).Debug("WCH")
+	watcher.Add(inputPath)
+	files, err := ioutil.ReadDir(inputPath)
+	if err != nil {
+		return err
 	}
-}
-
-func add(ignores []string) filepath.WalkFunc {
-	return func(inputPath string, f os.FileInfo, err error) error {
-		for _, ignore := range ignores {
-			if inputPath == ignore {
-				logrus.WithFields(logrus.Fields{
-					"message": fmt.Sprintf("ignore directory '%s'", inputPath),
-				}).Debug("WCH")
-				return nil
-			}
-		}
+	for _, f := range files {
+		filePath := filepath.Join(inputPath, f.Name())
 		if f.Mode().IsDir() {
-			addToWatcher(inputPath, f, err)
-			scan(inputPath)
-			return nil
+			watch(filePath, benchable)
+			continue
 		}
-		if f.Mode().IsRegular() {
+		if benchable && f.Mode().IsRegular() {
 			benchLock.Lock()
-			benchMap[inputPath] = time.Now()
-			logrus.WithFields(logrus.Fields{
-				"message": fmt.Sprintf("bench '%s'", inputPath),
-			}).Debug("WCH")
+			benchMap[filePath] = f.ModTime()
 			benchLock.Unlock()
-			return nil
+			logrus.WithFields(logrus.Fields{
+				"message": fmt.Sprintf("bench '%s'", filePath),
+			}).Debug("WCH")
+			continue
 		}
-		return nil
 	}
+	return nil
 }
 
 func tryRemoveFromBench(inputPath string) {
@@ -128,14 +125,24 @@ func scanBench(callback Callback, interval time.Duration) {
 		earlist := time.Now().Add(-interval)
 		for filePath, timestamp := range benchMap {
 			if timestamp.Before(earlist) {
+				f, _ := os.Stat(filePath)
 				tryRemoveFromBench(filePath)
+				if !f.ModTime().Equal(timestamp) {
+					logrus.WithFields(logrus.Fields{
+						"message": fmt.Sprintf("IGN '%s': %v",
+							filePath,
+							timestamp.Format("2006-01-02_15:04:05"),
+						),
+					}).Debug("WCH")
+					continue
+				}
 				logrus.WithFields(logrus.Fields{
 					"message": fmt.Sprintf("EXP '%s': %v",
 						filePath,
 						timestamp.Format("2006-01-02_15:04:05"),
 					),
 				}).Debug("WCH")
-				if err := callback(filePath); err != nil {
+				if err := callback.call(filePath); err != nil {
 					terminated <- struct{}{}
 					ticker.Stop()
 				}
@@ -145,21 +152,7 @@ func scanBench(callback Callback, interval time.Duration) {
 	}
 }
 
-func scanDirectories(inputPath string) {
-	if err := filepath.Walk(inputPath, addToWatcher); err != nil {
-		logrus.WithFields(logrus.Fields{
-			"path":    inputPath,
-			"message": err.Error(),
-		}).Error("WCH")
-	}
-}
-
-func addToWatcher(inputPath string, f os.FileInfo, err error) error {
-	if f.Mode().IsDir() {
-		logrus.WithFields(logrus.Fields{
-			"message": fmt.Sprintf("watch '%s'", inputPath),
-		}).Debug("WCH")
-		return watcher.Add(inputPath)
-	}
-	return nil
+func isDir(inputPath string) bool {
+	f, _ := os.Stat(inputPath)
+	return f.Mode().IsDir()
 }

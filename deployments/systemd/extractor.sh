@@ -19,5 +19,5 @@ cd $BASE
     -username=root \
     -password=$ECS_PWD \
     -watch=true \
-    -interval=10s
-done
+    -interval=10s \
+    -loglevel=debug

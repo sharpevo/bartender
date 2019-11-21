@@ -51,10 +51,11 @@ func ConvertColumnIndices(columnIndices string) (output []int, err error) { // {
 	return output, nil
 } // }}}
 
-func MakeOutputFilePath(outputPath string, fileName string, ext string) string { // {{{
-	_, file := filepath.Split(fileName)
+func MakeOutputFilePath(outputPath string, inputPath string, ext string) string { // {{{
+	dir, file := filepath.Split(inputPath)
 	return filepath.Join(
 		outputPath,
+		dir,
 		fmt.Sprintf(
 			"%v.%v",
 			strings.TrimSuffix(file, path.Ext(file)),

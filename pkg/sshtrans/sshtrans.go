@@ -1,6 +1,7 @@
 package sshtrans
 
 import (
+	"automation/pkg/workerpool"
 	"fmt"
 	"github.com/pkg/sftp"
 	"github.com/sirupsen/logrus"
@@ -8,9 +9,46 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 )
 
-func TransViaPassword(
+const (
+	NUM_WORKER      = 3
+	NUM_QUEUE       = 10
+	RESENDABLE      = true
+	RESEND_INTERVAL = 10 * time.Second
+)
+
+var dispatcher = workerpool.NewDispatcher(NUM_QUEUE, NUM_WORKER, launchWorker)
+
+func launchWorker(id int, inputc chan workerpool.Request) {
+	for request := range inputc {
+		data, _ := request.Data.(transData)
+		logrus.WithFields(logrus.Fields{
+			"message": fmt.Sprintf("worker TRS-%d: %s", id, data.localFilepath),
+		}).Debug("SND")
+		request.Errorc <- transViaPassword(
+			data.hostKey,
+			data.username,
+			data.password,
+			data.localFilepath,
+			data.remoteFilename,
+			data.remoteDir,
+		)
+	}
+}
+
+type transData struct {
+	hostKey        string
+	username       string
+	password       string
+	localFilepath  string
+	remoteFilename string
+	remoteDir      string
+	outputc        chan error
+}
+
+func transViaPassword(
 	hostKey string,
 	username string,
 	password string,
@@ -19,9 +57,11 @@ func TransViaPassword(
 	remoteDir string,
 ) error {
 	logrus.WithFields(logrus.Fields{
-		"local":     localFilepath,
-		"remoteDir": remoteDir,
-		"message":   "sending...",
+		"message": fmt.Sprintf(
+			"sending '%s' to '%s'",
+			localFilepath,
+			remoteDir,
+		),
 	}).Debug("SND")
 	if username == "" {
 		return fmt.Errorf("missing username")
@@ -78,8 +118,10 @@ func TransViaPassword(
 	}
 	if client.Chmod(remoteFilepath, os.FileMode(0755)) != nil {
 		logrus.WithFields(logrus.Fields{
-			"file":    remoteFilepath,
-			"message": "failed to chmod",
+			"message": fmt.Sprintf(
+				"failed to chmod '%s'",
+				remoteFilepath,
+			),
 		}).Error("SND")
 	}
 	defer dstFile.Close()
@@ -97,8 +139,66 @@ func TransViaPassword(
 		"bytesSent": bytes,
 	}).Debug("SND")
 	logrus.WithFields(logrus.Fields{
-		"local":  localFilepath,
-		"remote": remoteDir,
+		"message": fmt.Sprintf(
+			"sent '%s' to '%s'",
+			localFilepath,
+			remoteDir,
+		),
 	}).Info("SND")
+	return nil
+}
+
+func TransViaPassword(
+	hostKey string,
+	username string,
+	password string,
+	localFilepath string,
+	remoteFilename string,
+	remoteDir string,
+) error {
+	data := transData{
+		hostKey:        hostKey,
+		username:       username,
+		password:       password,
+		localFilepath:  localFilepath,
+		remoteFilename: remoteFilename,
+		remoteDir:      remoteDir,
+	}
+	count := 0
+	for {
+		errorc := make(chan error)
+		dispatcher.AddRequest(workerpool.Request{
+			Data:   data,
+			Errorc: errorc,
+		})
+		if err := <-errorc; err != nil {
+			if RESENDABLE {
+				count++
+				logrus.WithFields(logrus.Fields{
+					"message": fmt.Sprintf(
+						"resending '%s' %dth due to %s",
+						localFilepath,
+						count,
+						err.Error(),
+					),
+				}).Info("SND")
+				time.Sleep(RESEND_INTERVAL)
+				continue
+			} else {
+				return err
+			}
+		} else {
+			break
+		}
+	}
+	if count != 0 {
+		logrus.WithFields(logrus.Fields{
+			"message": fmt.Sprintf(
+				"resent '%s' %dth",
+				localFilepath,
+				count,
+			),
+		}).Info("SND")
+	}
 	return nil
 }
