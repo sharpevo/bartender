@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -200,5 +201,69 @@ func TransViaPassword(
 			),
 		}).Info("SND")
 	}
+	return nil
+}
+
+func RemoveViaPassword(
+	hostKey string,
+	username string,
+	password string,
+	remoteDir string,
+) error {
+	logrus.WithFields(logrus.Fields{
+		"message": fmt.Sprintf(
+			"removing remote dir '%s'",
+			remoteDir,
+		),
+	}).Debug("RMV")
+	if username == "" {
+		return fmt.Errorf("missing username")
+	}
+	if password == "" {
+		return fmt.Errorf("missing password")
+	}
+	if remoteDir == "" {
+		return fmt.Errorf("missing remoteDir")
+	}
+	if strings.Count(remoteDir, "/") < 3 {
+		return fmt.Errorf("invalid remoteDir: at least L3 directory")
+	}
+	_, hosts, pubKey, _, _, err := ssh.ParseKnownHosts([]byte(hostKey))
+	if err != nil {
+		return fmt.Errorf("invalid host key: %v", err)
+	}
+	if len(hosts) < 1 {
+		return fmt.Errorf("invalid host: %v", hosts)
+	}
+	config := &ssh.ClientConfig{
+		User: username,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(password),
+		},
+		HostKeyCallback: ssh.FixedHostKey(pubKey),
+	}
+	conn, err := ssh.Dial(
+		"tcp",
+		fmt.Sprintf("%s:22", hosts[0]),
+		config,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to dial: %v", err)
+	}
+	session, err := conn.NewSession()
+	defer session.Close()
+	if err != nil {
+		return fmt.Errorf("failed to create session: %v", err)
+	}
+	command := fmt.Sprintf("rm -rf %s", remoteDir)
+	if err := session.Run(command); err != nil {
+		return err
+	}
+	logrus.WithFields(logrus.Fields{
+		"message": fmt.Sprintf(
+			"removed remote dir '%s'",
+			remoteDir,
+		),
+	}).Debug("RMV")
 	return nil
 }
