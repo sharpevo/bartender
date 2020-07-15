@@ -2,6 +2,7 @@ package sshtrans
 
 import (
 	"automation/pkg/workerpool"
+	"bytes"
 	"fmt"
 	"github.com/pkg/sftp"
 	"github.com/sirupsen/logrus"
@@ -255,9 +256,11 @@ func RemoveViaPassword(
 	if err != nil {
 		return fmt.Errorf("failed to create session: %v", err)
 	}
+	var stderr bytes.Buffer
+	session.Stderr = &stderr
 	command := fmt.Sprintf("rm -rf %s", remoteDir)
 	if err := session.Run(command); err != nil {
-		return err
+		return fmt.Errorf("%s: %s", err, stderr)
 	}
 	logrus.WithFields(logrus.Fields{
 		"message": fmt.Sprintf(
