@@ -258,7 +258,7 @@ func RemoveViaPassword(
 	}
 	var stderr bytes.Buffer
 	session.Stderr = &stderr
-	command := fmt.Sprintf("rm -rf %s", remoteDir)
+	command := fmt.Sprintf(`rm -rf "%s"`, remoteDir)
 	if err := session.Run(command); err != nil {
 		return fmt.Errorf("%s: %s", err, stderr)
 	}
