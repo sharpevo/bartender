@@ -122,6 +122,15 @@ func (c *ExtractCommand) Execute() error {
 			}
 			return nil
 		},
+		func(inputPath string) error {
+			if err := c.remove(inputPath); err != nil {
+				logrus.WithFields(logrus.Fields{
+					"file":    inputPath,
+					"message": err.Error(),
+				}).Error("RMV")
+			}
+			return nil
+		},
 	)
 	return nil
 }
@@ -172,6 +181,20 @@ func (c *ExtractCommand) process(inputPath string) error {
 		return err
 	}
 	return nil
+}
+
+func (c *ExtractCommand) remove(inputPath string) error {
+	remoteDir, _ := fsop.CustomRemoteFileNameAndDir(
+		inputPath,
+		c.ServerOptions.Directory,
+		c.Options.OutputType,
+	)
+	return sshtrans.RemoveViaPassword(
+		c.ServerOptions.HostKey,
+		c.ServerOptions.UserName,
+		c.ServerOptions.Password,
+		remoteDir,
+	)
 }
 
 func (c *ExtractCommand) extract(inputPath string) (outputFile string, err error) {

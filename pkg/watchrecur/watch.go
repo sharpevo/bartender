@@ -29,6 +29,7 @@ func Watch(
 	inputPath string,
 	interval time.Duration,
 	callback Callback,
+	removeCallback Callback,
 ) {
 	watcher, _ = fsnotify.NewWatcher()
 	defer watcher.Close()
@@ -65,6 +66,13 @@ func Watch(
 					fileLock.Lock()
 					watch(filePath, true)
 					fileLock.Unlock()
+				}
+				if event.Op&fsnotify.Remove == fsnotify.Remove {
+					go func(inputPath string) {
+						if removeCallback.call(inputPath) != nil {
+							terminated <- struct{}{}
+						}
+					}(event.Name)
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
