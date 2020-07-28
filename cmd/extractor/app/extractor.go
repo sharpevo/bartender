@@ -1,18 +1,20 @@
 package app
 
 import (
-	"automation/cmd/extractor/options"
-	commonOptions "automation/cmd/options"
-	"automation/internal/fsop"
-	"automation/pkg/sshtrans"
-	"automation/pkg/watchrecur"
 	"excel"
 	"flag"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
 	"regexp"
+
+	"github.com/sharpevo/bartender/cmd/extractor/options"
+	commonOptions "github.com/sharpevo/bartender/cmd/options"
+	"github.com/sharpevo/bartender/internal/fsop"
+	"github.com/sharpevo/bartender/pkg/sshtrans"
+	"github.com/sharpevo/bartender/pkg/watchrecur"
+
+	"github.com/sirupsen/logrus"
 )
 
 type ExtractCommand struct {

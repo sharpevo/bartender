@@ -1,17 +1,19 @@
 package sshtrans
 
 import (
-	"automation/pkg/workerpool"
 	"bytes"
 	"fmt"
-	"github.com/pkg/sftp"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/sharpevo/bartender/pkg/workerpool"
+
+	"github.com/pkg/sftp"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 const (
