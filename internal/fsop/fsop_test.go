@@ -1,10 +1,11 @@
 package fsop_test
 
 import (
-	"automation/internal/fsop"
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/sharpevo/bartender/internal/fsop"
 )
 
 func TestCustomRemoteFileNameAndDir(t *testing.T) {

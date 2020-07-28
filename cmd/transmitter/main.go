@@ -1,10 +1,11 @@
 package main
 
 import (
-	"automation/cmd/transmitter/app"
-	_ "automation/internal/pkg/alog"
 	"log"
 	"os"
+
+	"github.com/sharpevo/bartender/cmd/transmitter/app"
+	_ "github.com/sharpevo/bartender/internal/pkg/alog"
 )
 
 func main() {
