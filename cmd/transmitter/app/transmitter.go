@@ -107,6 +107,13 @@ func (c *TransmitterCommand) Execute() error {
 			}
 			return nil
 		},
+		func(inputPath string) error {
+			logrus.WithFields(logrus.Fields{
+				"file":    inputPath,
+				"message": "delete event is omitted",
+			}).Warn("TRS")
+			return nil
+		},
 	)
 	return nil
 }
