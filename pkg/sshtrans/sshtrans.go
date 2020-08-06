@@ -99,6 +99,7 @@ func transViaPassword(
 	if err != nil {
 		return fmt.Errorf("failed to dial: %v", err)
 	}
+	defer conn.Close()
 
 	client, err := sftp.NewClient(conn)
 	if err != nil {
