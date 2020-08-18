@@ -1,7 +1,6 @@
 package app
 
 import (
-	"excel"
 	"flag"
 	"fmt"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"github.com/sharpevo/bartender/pkg/sshtrans"
 	"github.com/sharpevo/bartender/pkg/watchrecur"
 
+	"github.com/sharpevo/xlsxutil"
 	"github.com/sirupsen/logrus"
 )
 
@@ -200,7 +200,7 @@ func (c *ExtractCommand) remove(inputPath string) error {
 }
 
 func (c *ExtractCommand) extract(inputPath string) (outputFile string, err error) {
-	data, err := excel.ExtractColumns(
+	data, err := xlsxutil.ExtractColumns(
 		inputPath,
 		c.Options.SheetIndex,
 		c.Options.RowStartsAt,
@@ -220,16 +220,16 @@ func (c *ExtractCommand) extract(inputPath string) (outputFile string, err error
 		return outputFile, err
 	}
 	switch c.Options.OutputType {
-	case excel.OUTPUT_TYPE_CSV, excel.OUTPUT_TYPE_TXT:
-		if excel.MakeFileCSV(
+	case xlsxutil.OUTPUT_TYPE_CSV, xlsxutil.OUTPUT_TYPE_TXT:
+		if xlsxutil.MakeFileCSV(
 			outputFile,
 			data,
-			excel.SEPARATOR_TAB,
+			xlsxutil.SEPARATOR_TAB,
 		) != nil {
 			return outputFile, err
 		}
-	case excel.OUTPUT_TYPE_XLSX:
-		if excel.MakeFileXLSX(
+	case xlsxutil.OUTPUT_TYPE_XLSX:
+		if xlsxutil.MakeFileXLSX(
 			outputFile,
 			data,
 			"sheet-0",
