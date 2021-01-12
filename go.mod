@@ -11,3 +11,9 @@ require (
 	github.com/tealeg/xlsx/v3 v3.2.0 // indirect
 	golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de
 )
+
+replace (
+    github.com/fsnotify/fsnotify => /home/yang/go/src/github.com/fsnotify/fsnotify
+	github.com/sharpevo/xlsxutil => /home/yang/go/src/github.com/sharpevo/xlsxutil
+	github.com/sharpevo/testutil => /home/yang/go/src/github.com/sharpevo/testutil
+)
