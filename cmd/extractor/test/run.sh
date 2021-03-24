@@ -1,5 +1,5 @@
 #!/bin/bash
-source ~/go/src/automation/password.rc
+source ~/go/src/github.com/sharpevo/bartender/password.rc
 ../extractor \
     -inputpath=/tmp/input \
     -namepattern="^.*\\.(xlsx|xlsm|xls|txt)$" \
@@ -7,7 +7,7 @@ source ~/go/src/automation/password.rc
     -sheet=1 \
     -rowstart=2 \
     -rowend=-1 \
-    -columns=1,2,3,4,5,9,11 \
+    -columns=1,2,3,4,5,6 \
     -outputtype=txt \
     -outputpath=output/ \
     -remotepath=/home/igenetech/testauto \
@@ -18,3 +18,4 @@ source ~/go/src/automation/password.rc
     -watch=true \
     -loglevel=debug
 #-namepattern="^.*\\.(xlsx|xlsm|xls$"
+    #-columns=1,2,3,4,5,9,11 \
