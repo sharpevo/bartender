@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 func CustomRemoteFileNameAndDir( // {{{
@@ -17,6 +19,17 @@ func CustomRemoteFileNameAndDir( // {{{
 ) (string, string) {
 	sourceDir, sourceFile := filepath.Split(sourceFilePath)
 	monthDir := path.Base(sourceDir)
+	if len(sourceFile) < 6 {
+		logrus.Warnf("failed to parse date from filename: %s", sourceFilePath)
+	} else {
+		datePrefix := sourceFile[:6]
+		if monthDir != datePrefix {
+			monthDir = datePrefix
+			logrus.Warnf("take prefix as archive dir: %s", sourceFilePath)
+		} else {
+			logrus.Warnf("take prefix as archive dir: %s", sourceFilePath)
+		}
+	}
 	remoteDir := filepath.Join(remoteOutputPath, monthDir)
 	sourceFileName := strings.TrimSuffix(sourceFile, path.Ext(sourceFile))
 	remoteDir = filepath.Join(remoteDir, sourceFileName)

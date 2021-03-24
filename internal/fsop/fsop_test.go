@@ -17,10 +17,18 @@ func TestCustomRemoteFileNameAndDir(t *testing.T) {
 		expectFile string
 	}{
 		{
+			source:     "/var/www/html/cloudrun/chart/202103/20200222-NSS40153--分析需求表-艾吉.xlsm",
+			remote:     "/root/upload",
+			outputtype: "txt",
+			expectDir:  "/root/upload/202002/20200222-NSS40153--分析需求表-艾吉",
+			expectFile: "20200222-NSS40153--分析需求表-艾吉.txt",
+		},
+		{
 			source:     "/var/log/test/project-A.xlsm",
 			remote:     "/root/upload",
 			outputtype: "txt",
-			expectDir:  "/root/upload/test/project-A",
+			//expectDir:  "/root/upload/test/project-A",
+			expectDir:  "/root/upload/projec/project-A",
 			expectFile: "project-A.txt",
 		},
 	}
