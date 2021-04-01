@@ -25,9 +25,9 @@ func CustomRemoteFileNameAndDir( // {{{
 		datePrefix := sourceFile[:6]
 		if monthDir != datePrefix {
 			monthDir = datePrefix
-			logrus.Warnf("take prefix as archive dir: %s", sourceFilePath)
+			logrus.Warnf("take prefix as archive dir: %s %s", monthDir, sourceFilePath)
 		} else {
-			logrus.Warnf("take prefix as archive dir: %s", sourceFilePath)
+			logrus.Warnf("take parent as archive dir: %s %s", monthDir, sourceFilePath)
 		}
 	}
 	remoteDir := filepath.Join(remoteOutputPath, monthDir)
