@@ -200,13 +200,14 @@ func (c *ExtractCommand) remove(inputPath string) error {
 }
 
 func (c *ExtractCommand) extract(inputPath string) (outputFile string, err error) {
+	index := c.Options.SheetIndex
 	if filepath.Ext(inputPath) == ".xlsx" {
 		logrus.Infof("change the sheet index to 0: %s", filepath.Base(inputPath))
-		c.Options.SheetIndex = 0
+		index = 0
 	}
 	data, err := xlsxutil.ExtractColumns(
 		inputPath,
-		c.Options.SheetIndex,
+		index,
 		c.Options.RowStartsAt,
 		c.Options.RowEndsAt,
 		c.Columns,
