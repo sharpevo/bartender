@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/sharpevo/bartender/cmd/extractor/options"
 	commonOptions "github.com/sharpevo/bartender/cmd/options"
@@ -215,6 +216,7 @@ func (c *ExtractCommand) extract(inputPath string) (outputFile string, err error
 	if err != nil {
 		return outputFile, err
 	}
+	data = trimSpaces(data)
 	outputFile = fsop.MakeOutputFilePath(
 		c.Options.OutputPath,
 		inputPath,
@@ -255,4 +257,16 @@ func (c *ExtractCommand) extract(inputPath string) (outputFile string, err error
 		),
 	}).Info("PRS")
 	return outputFile, nil
+}
+
+func trimSpaces(rows [][]string) [][]string {
+	output := [][]string{}
+	for _, row := range rows {
+		cells := []string{}
+		for _, cell := range row {
+			cells = append(cells, strings.Replace(cell, " ", "", -1))
+		}
+		output = append(output, cells)
+	}
+	return output
 }
