@@ -103,3 +103,25 @@ func AttachLogOptions(cmd *flag.FlagSet) *LogOptions {
 	)
 	return options
 }
+
+type DingOptions struct {
+	Token  string
+	Source string
+}
+
+func AttachDingOptions(cmd *flag.FlagSet) *DingOptions {
+	options := &DingOptions{}
+	cmd.StringVar(
+		&options.Token,
+		"dingtoken",
+		"",
+		"token of dingtalk robot",
+	)
+	cmd.StringVar(
+		&options.Source,
+		"dingsource",
+		"",
+		"source of dingtalk robot",
+	)
+	return options
+}

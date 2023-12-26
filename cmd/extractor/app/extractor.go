@@ -11,6 +11,7 @@ import (
 	"github.com/sharpevo/bartender/cmd/extractor/options"
 	commonOptions "github.com/sharpevo/bartender/cmd/options"
 	"github.com/sharpevo/bartender/internal/fsop"
+	"github.com/sharpevo/bartender/pkg/messenger"
 	"github.com/sharpevo/bartender/pkg/sshtrans"
 	"github.com/sharpevo/bartender/pkg/watchrecur"
 
@@ -22,6 +23,7 @@ type ExtractCommand struct {
 	LogOptions    *commonOptions.LogOptions
 	ServerOptions *commonOptions.ServerOptions
 	WatchOptions  *commonOptions.WatchOptions
+	DingOptions   *commonOptions.DingOptions
 	Options       *options.Options
 	Recursive     bool
 	Columns       []int
@@ -34,6 +36,7 @@ func NewExtractCommand() *ExtractCommand {
 		LogOptions:    commonOptions.AttachLogOptions(flag.CommandLine),
 		ServerOptions: commonOptions.AttachServerOptions(flag.CommandLine),
 		WatchOptions:  commonOptions.AttachWatchOptions(flag.CommandLine),
+		DingOptions:   commonOptions.AttachDingOptions(flag.CommandLine),
 		Options:       options.AttachOptions(flag.CommandLine),
 	}
 }
@@ -154,6 +157,11 @@ func (c *ExtractCommand) process(inputPath string) error {
 	if c.RegexpExtract.MatchString(inputPath) {
 		outputFile, err = c.extract(inputPath)
 		if err != nil {
+			messenger.Send(
+				c.DingOptions.Token,
+				fmt.Sprintf(
+					"**Failed to extract xlsx file**\n\n%s\n\n###### %s",
+					inputPath, c.DingOptions.Source))
 			return err
 		}
 	} else {
