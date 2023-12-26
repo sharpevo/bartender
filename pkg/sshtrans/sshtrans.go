@@ -20,7 +20,8 @@ const (
 	NUM_WORKER      = 3
 	NUM_QUEUE       = 10
 	RESENDABLE      = true
-	RESEND_INTERVAL = 10 * time.Second
+	MAX_RESEND      = 10
+	RESEND_INTERVAL = 30 * time.Second
 )
 
 var dispatcher = workerpool.NewDispatcher(NUM_QUEUE, NUM_WORKER, launchWorker)
@@ -177,7 +178,7 @@ func TransViaPassword(
 			Errorc: errorc,
 		})
 		if err := <-errorc; err != nil {
-			if RESENDABLE {
+			if RESENDABLE && count < MAX_RESEND {
 				count++
 				logrus.WithFields(logrus.Fields{
 					"message": fmt.Sprintf(

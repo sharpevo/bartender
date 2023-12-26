@@ -10,6 +10,7 @@ import (
 	commonOptions "github.com/sharpevo/bartender/cmd/options"
 	"github.com/sharpevo/bartender/cmd/transmitter/options"
 	"github.com/sharpevo/bartender/internal/fsop"
+	"github.com/sharpevo/bartender/pkg/messenger"
 	"github.com/sharpevo/bartender/pkg/sshtrans"
 	"github.com/sharpevo/bartender/pkg/watchrecur"
 
@@ -20,6 +21,7 @@ type TransmitterCommand struct {
 	LogOptions    *commonOptions.LogOptions
 	ServerOptions *commonOptions.ServerOptions
 	WatchOptions  *commonOptions.WatchOptions
+	DingOptions   *commonOptions.DingOptions
 	Options       *options.Options
 	Regexp        *regexp.Regexp
 	Recursive     bool
@@ -30,6 +32,7 @@ func NewTransmitterCommand() *TransmitterCommand {
 		LogOptions:    commonOptions.AttachLogOptions(flag.CommandLine),
 		WatchOptions:  commonOptions.AttachWatchOptions(flag.CommandLine),
 		ServerOptions: commonOptions.AttachServerOptions(flag.CommandLine),
+		DingOptions:   commonOptions.AttachDingOptions(flag.CommandLine),
 		Options:       options.AttachOptions(flag.CommandLine),
 	}
 }
@@ -69,6 +72,12 @@ func (c *TransmitterCommand) Execute() error {
 				"file":    c.Options.InputPath,
 				"message": err.Error(),
 			}).Error("TRS")
+			messenger.Send(
+				c.DingOptions.Token,
+				fmt.Sprintf(
+					"**Failed to send file after 10 retries**\n\n%s\n\n######%s",
+					c.Options.InputPath,
+					c.DingOptions.Source))
 			return err
 		}
 		return nil
