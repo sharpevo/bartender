@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	commonOptions "github.com/sharpevo/bartender/cmd/options"
 	"github.com/sharpevo/bartender/cmd/transmitter/options"
@@ -53,7 +54,10 @@ func (c *TransmitterCommand) Validate() (err error) {
 		"logOptions":    commonOptions.Debug(c.LogOptions),
 		"watchOptions":  commonOptions.Debug(c.WatchOptions),
 		"serverOptions": commonOptions.Debug(c.ServerOptions),
+		"dingOptions":   commonOptions.Debug(c.DingOptions),
 		"options":       commonOptions.Debug(c.Options),
+		"recursive":     c.Recursive,
+		"regexp":        c.Regexp,
 	}).Debug("LOG")
 	c.Regexp, err = regexp.Compile(c.WatchOptions.FileNamePattern)
 	if err != nil {
@@ -113,6 +117,15 @@ func (c *TransmitterCommand) Execute() error {
 					"file":    inputPath,
 					"message": err.Error(),
 				}).Error("TRS")
+			} else {
+				if filepath.Base(inputPath) == "list.ana.xls" {
+					messenger.Send(
+						c.DingOptions.Token,
+						fmt.Sprintf(
+							"嘉善GPU监控通知: %s\n%s 研发分析需求同步成功.",
+							time.Now().Format("Mon Jan 2 15:04:05 2006"),
+							filepath.Base(filepath.Dir(inputPath))))
+				}
 			}
 			return nil
 		},
