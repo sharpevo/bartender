@@ -224,7 +224,7 @@ func (c *ExtractCommand) extract(inputPath string) (outputFile string, err error
 	if err != nil {
 		return outputFile, err
 	}
-	data = trimSpaces(data)
+	data = trimSpacesAndTabs(data)
 	outputFile = fsop.MakeOutputFilePath(
 		c.Options.OutputPath,
 		inputPath,
@@ -267,12 +267,13 @@ func (c *ExtractCommand) extract(inputPath string) (outputFile string, err error
 	return outputFile, nil
 }
 
-func trimSpaces(rows [][]string) [][]string {
+func trimSpacesAndTabs(rows [][]string) [][]string {
 	output := [][]string{}
 	for _, row := range rows {
 		cells := []string{}
 		for _, cell := range row {
-			cells = append(cells, strings.Replace(cell, " ", "", -1))
+			cells = append(cells,
+				strings.Replace(strings.Replace(cell, " ", "", -1), "\t", "", -1))
 		}
 		output = append(output, cells)
 	}
